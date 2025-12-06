@@ -47,53 +47,57 @@ def fetch_news(company: str) -> List[Dict[str, Any]]:
 
 @st.cache_data(ttl=3600)
 def fetch_wikipedia_pageviews(company: str) -> List[Dict[str, Any]]:
-    """Fetch Wikipedia pageviews as interest metric (replaces Google Trends)"""
+    """Fetch Wikipedia pageviews as interest metric"""
     try:
-        # Step 1: Search for Wikipedia article
+        # Define User-Agent header
+        headers = {
+            'User-Agent': 'Marketing Intelligence Platform/1.0 (https://github.com/sulatt3/marketing-intelligence-platform; su.h.latt3@gmail.com)'
+        }
+        
+        # Step 1: Search for article - ADD headers HERE
         search_url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={company}&limit=1&format=json"
-        search_resp = requests.get(search_url, timeout=10)
+        search_resp = requests.get(search_url, headers=headers, timeout=10)  # ← Added headers
         titles = search_resp.json()[1]
         
         if not titles:
             return [{"source": "Wikipedia", "total_pageviews": None}]
         
-        # Step 2: Get article title and format for API
         title = titles[0].replace(" ", "_")
         
-        # Step 3: Get pageviews for last 30 days
+        # Step 2: Get pageviews - ADD headers HERE TOO
         end_date = datetime.now().strftime("%Y%m%d")
         start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
         
         pageviews_url = f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{title}/daily/{start_date}/{end_date}"
-        pageviews_resp = requests.get(pageviews_url, timeout=10)
-        data = pageviews_resp.json()
+        pageviews_resp = requests.get(pageviews_url, headers=headers, timeout=10)  # ← Added headers
         
-        views = [item['views'] for item in data.get('items', [])]
-        
-        if not views:
+        if pageviews_resp.status_code == 200:
+            data = pageviews_resp.json()
+            views = [item['views'] for item in data.get('items', [])]
+            
+            if not views:
+                return [{"source": "Wikipedia", "total_pageviews": None}]
+            
+            total_views = sum(views)
+            avg_views = int(total_views / len(views))
+            peak_views = max(views)
+            
+            recent_avg = sum(views[-7:]) / 7 if len(views) >= 7 else avg_views
+            older_avg = sum(views[:-7]) / len(views[:-7]) if len(views) > 7 else avg_views
+            trend = "rising" if recent_avg > older_avg * 1.1 else ("declining" if recent_avg < older_avg * 0.9 else "stable")
+            
+            return [{
+                "source": "Wikipedia",
+                "total_pageviews": total_views,
+                "avg_daily_pageviews": avg_views,
+                "peak_daily_pageviews": peak_views,
+                "trend_direction": trend,
+                "article_title": titles[0]
+            }]
+        else:
             return [{"source": "Wikipedia", "total_pageviews": None}]
-        
-        # Calculate statistics
-        total_views = sum(views)
-        avg_views = int(total_views / len(views))
-        peak_views = max(views)
-        
-        # Calculate trend direction (last 7 days vs previous 23 days)
-        recent_avg = sum(views[-7:]) / 7 if len(views) >= 7 else avg_views
-        older_avg = sum(views[:-7]) / len(views[:-7]) if len(views) > 7 else avg_views
-        
-        trend = "rising" if recent_avg > older_avg * 1.1 else ("declining" if recent_avg < older_avg * 0.9 else "stable")
-        
-        return [{
-            "source": "Wikipedia",
-            "total_pageviews": total_views,
-            "avg_daily_pageviews": avg_views,
-            "peak_daily_pageviews": peak_views,
-            "trend_direction": trend,
-            "article_title": titles[0]
-        }]
-        
-    except Exception as e:
+            
+    except Exception:
         return [{"source": "Wikipedia", "total_pageviews": None}]
 
 def collect_all_data(company: str, use_news: bool, use_wikipedia: bool) -> List[Dict[str, Any]]:
@@ -268,7 +272,7 @@ with st.sidebar:
     use_wikipedia = st.checkbox("Wikipedia Pageviews", value=True, help="Public interest metric")
     st.markdown("---")
     st.subheader("Analysis Options")
-    num_articles = st.slider("Articles to analyze", min_value=20, max_value=50, value=40, step=5)
+    num_articles = st.slider("Articles to analyze", min_value=20, max_value=100, value=50, step=5)
     st.markdown("---")
     generate_btn = st.button("Generate Report", type="primary")
     st.markdown("---")
