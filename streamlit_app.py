@@ -1,73 +1,248 @@
 """
 Marketing Intelligence Platform - Main UI
+Complete with visualizations from V1
 """
 
 import streamlit as st
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Dict, Any
+from difflib import SequenceMatcher
 
-# Import our competitive intelligence modules
-from modules.competitive.data_collector import CompetitiveDataCollector
-from modules.competitive.analyzer import CompetitiveAnalyzer
+import plotly.express as px
+import plotly.graph_objects as go
+import pandas as pd
+import google.generativeai as genai
+from newsapi import NewsApiClient
+from pytrends.request import TrendReq
 
 # Page config
 st.set_page_config(
     page_title="Marketing Intelligence Platform",
-    page_icon="chart",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Initialize session state
-if 'current_report' not in st.session_state:
+# Initialize Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("models/gemini-2.5-pro")
+
+# Caching for performance
+@st.cache_data(ttl=3600)
+def fetch_news(company: str) -> List[Dict[str, Any]]:
+    try:
+        newsapi = NewsApiClient(api_key=os.getenv("NEWSAPI_KEY"))
+        from_date = (datetime.now() - timedelta(days=29)).strftime("%Y-%m-%d")
+        articles = newsapi.get_everything(q=company, language="en", sort_by="publishedAt", from_param=from_date, page_size=100)
+        return [{"source": "News", "title": a["title"], "url": a["url"],
+                 "date": a["publishedAt"][:10] if a["publishedAt"] else "Unknown",
+                 "snippet": a["description"] or a["content"] or "",
+                 "full_content": a["content"] or ""}
+                for a in articles.get("articles", [])]
+    except Exception as e:
+        st.warning(f"NewsAPI error: {e}")
+        return []
+
+@st.cache_data(ttl=3600)
+def fetch_trends(company: str) -> List[Dict[str, Any]]:
+    try:
+        pytrends = TrendReq(hl="en-US", tz=360)
+        pytrends.build_payload([company], timeframe="today 3-m", geo="")
+        df = pytrends.interest_over_time()
+        if df.empty or company not in df.columns:
+            return [{"source": "Google Trends", "current_interest_level": None}]
+        interest = df[company]
+        mean, std = interest.mean(), interest.std()
+        spikes = interest[interest > mean + 1.5 * std]
+        return [{
+            "source": "Google Trends",
+            "current_interest_level": int(interest.iloc[-1]),
+            "peak_90d": int(interest.max()),
+            "average_90d": int(mean),
+            "spike_dates": [idx.strftime("%Y-%m-%d") for idx in spikes.index],
+            "trend_direction": "rising" if interest.iloc[-7:].mean() > mean else "stable/declining"
+        }]
+    except Exception as e:
+        return [{"source": "Google Trends", "current_interest_level": None}]
+
+def collect_all_data(company: str, use_news: bool, use_trends: bool) -> List[Dict[str, Any]]:
+    fetchers = []
+    if use_news:
+        fetchers.append(fetch_news)
+    if use_trends:
+        fetchers.append(fetch_trends)
+    all_data = []
+    if fetchers:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = {executor.submit(f, company): f for f in fetchers}
+            for future in as_completed(futures):
+                data = future.result()
+                all_data.extend(data if isinstance(data, list) else [data])
+    return all_data
+
+def similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+def deduplicate_by_title(items: List[Dict[str, Any]], threshold: float = 0.85) -> List[Dict[str, Any]]:
+    if not items:
+        return []
+    unique, seen = [], []
+    for item in items:
+        title = item.get("title", "")
+        if title and not any(similarity(title, s) > threshold for s in seen):
+            unique.append(item)
+            seen.append(title)
+    return unique
+
+def score_relevance(item: Dict[str, Any], company: str) -> float:
+    score, company_lower = 0.0, company.lower()
+    title = item.get("title", "").lower()
+    if company_lower in title:
+        score += 40
+    combined = f"{item.get('snippet', '').lower()} {item.get('full_content', '').lower()}"
+    if company_lower in combined:
+        score += 20
+    score += min(combined.count(company_lower) * 5, 20)
+    date_str = item.get("date", "")
+    if date_str != "Unknown":
+        try:
+            days_old = (datetime.now() - datetime.strptime(date_str, "%Y-%m-%d")).days
+            score += 15 if days_old <= 7 else (10 if days_old <= 14 else (5 if days_old <= 30 else 0))
+        except:
+            pass
+    return min(score, 100)
+
+def rank_and_filter(items: List[Dict[str, Any]], company: str, top_n: int = 60) -> List[Dict[str, Any]]:
+    for item in items:
+        item["relevance_score"] = score_relevance(item, company)
+    return sorted(items, key=lambda x: x.get("relevance_score", 0), reverse=True)[:top_n]
+
+def process_data(raw_data: List[Dict[str, Any]], company: str, top_n: int = 60) -> List[Dict[str, Any]]:
+    return rank_and_filter(deduplicate_by_title(raw_data), company, top_n=top_n)
+
+def analyze_sentiment(text: str) -> str:
+    pos = ["launch", "growth", "success", "innovation", "partnership", "funding", "expansion", "breakthrough"]
+    neg = ["loss", "decline", "controversy", "lawsuit", "criticism", "failure", "layoff", "scandal"]
+    t = text.lower()
+    p, n = sum(1 for w in pos if w in t), sum(1 for w in neg if w in t)
+    return "positive" if p > n else ("negative" if n > p else "neutral")
+
+def build_synthesis_prompt(processed_data: List[Dict[str, Any]], company: str) -> str:
+    news = [i for i in processed_data if i.get("source") == "News"]
+    trends = [i for i in processed_data if i.get("source") == "Google Trends"]
+    news_text = "\n".join([f"[{i}] {item['title']} ({item['date']})" for i, item in enumerate(news, 1)])
+    trends_text = ""
+    if trends and trends[0].get("current_interest_level"):
+        t = trends[0]
+        trends_text = f"\nTrends: {t['current_interest_level']}/100, {t['trend_direction']}, Spikes: {', '.join(t.get('spike_dates', []))}"
+    return f"""You are an expert competitive intelligence analyst. Analyze {company} and create a comprehensive brief.
+
+# Competitive Intelligence Brief: {company}
+**Generated:** {datetime.now().strftime("%Y-%m-%d")}
+
+## Executive Summary
+High-level overview of competitive position and recent activities
+
+## Recent Key Moves
+Strategic moves and developments in last 30 days with dates
+
+## Product Launches & Features
+New products, features, updates
+
+## Funding, Partnerships & Hiring
+Funding rounds, partnerships, acquisitions, key hires
+
+## Google Trends Analysis
+Analyze search interest, spikes, trend direction
+
+## Competitive Threats & Opportunities
+What threats does {company} pose? What opportunities/weaknesses exist?
+
+## Strategic Recommendations
+3-5 actionable recommendations for competitors
+
+## Timeline of Key Events
+Chronological timeline of important events
+
+## Sources
+Articles analyzed and date range
+
+Be specific, cite dates, focus on facts. 1000-1500 words.
+
+DATA:
+{news_text}
+{trends_text}"""
+
+@st.cache_data(ttl=3600)
+def generate_competitive_brief(company: str, use_news: bool, use_trends: bool, num_articles: int) -> tuple:
+    raw = collect_all_data(company, use_news, use_trends)
+    if not raw:
+        return "# Error\n\nNo data sources enabled.", None
+    processed = process_data(raw, company, top_n=num_articles)
+    news_items = [i for i in processed if i.get("source") == "News"]
+    if len(news_items) < 5:
+        return f"# Data Quality Warning: {company}\n\nOnly {len(news_items)} news articles found. Try full legal name or enable more sources.", None
+    response = model.generate_content(build_synthesis_prompt(processed, company))
+    return response.text, processed
+
+def create_timeline_viz(processed_data):
+    news = [i for i in processed_data if i.get("source") == "News" and i.get("date") != "Unknown"]
+    if not news:
+        return None
+    for i in news:
+        i["sentiment"] = analyze_sentiment(i.get("title", "") + " " + i.get("snippet", ""))
+    df = pd.DataFrame(news)
+    df["date"] = pd.to_datetime(df["date"])
+    fig = px.scatter(df, x="date", y="relevance_score", color="sentiment", size="relevance_score",
+                     hover_data=["title"], title="Timeline of Articles (Size = Relevance Score)",
+                     color_discrete_map={"positive": "#28a745", "negative": "#dc3545", "neutral": "#6c757d"})
+    fig.update_layout(height=450, hovermode="closest")
+    return fig
+
+def create_sentiment_viz(processed_data):
+    news = [i for i in processed_data if i.get("source") == "News"]
+    if not news:
+        return None
+    for i in news:
+        i["sentiment"] = analyze_sentiment(i.get("title", "") + " " + i.get("snippet", ""))
+    df = pd.DataFrame(news)
+    counts = df["sentiment"].value_counts()
+    fig = go.Figure(data=[go.Bar(x=counts.index, y=counts.values,
+                                  marker_color=["#28a745" if s == "positive" else "#dc3545" if s == "negative" else "#6c757d" for s in counts.index],
+                                  text=counts.values, textposition="auto")])
+    fig.update_layout(title="Sentiment Distribution", xaxis_title="Sentiment", yaxis_title="Number of Articles", height=400, showlegend=False)
+    return fig
+
+# Session state
+if "current_report" not in st.session_state:
     st.session_state.current_report = None
-if 'current_company' not in st.session_state:
+if "current_company" not in st.session_state:
     st.session_state.current_company = None
-if 'processed_data' not in st.session_state:
+if "processed_data" not in st.session_state:
     st.session_state.processed_data = None
 
-# Title
+# UI
 st.title("Marketing Intelligence Platform")
-st.markdown("**Status:** Week 1 - Competitive Intelligence Module")
+st.markdown("**Status:** Week 1 Complete - Competitive Intelligence Module")
 st.markdown("---")
 
-# Sidebar
 with st.sidebar:
     st.header("Competitive Analysis")
-    
-    company_name = st.text_input(
-        "Company Name",
-        placeholder="e.g., Perplexity, Anthropic, OpenAI",
-        help="Enter the company you want to analyze"
-    )
-    
+    company_name = st.text_input("Company Name", placeholder="e.g., Perplexity, Anthropic, OpenAI")
     st.markdown("---")
-    
     st.subheader("Data Sources")
     use_news = st.checkbox("News API", value=True, help="Recent articles from last 30 days")
     use_trends = st.checkbox("Google Trends", value=True, help="Search interest data")
-    
     st.markdown("---")
-    
     st.subheader("Analysis Options")
-    num_articles = st.slider(
-        "Articles to analyze",
-        min_value=20,
-        max_value=50,
-        value=40,
-        step=5,
-        help="More articles = more comprehensive analysis"
-    )
-    
+    num_articles = st.slider("Articles to analyze", min_value=20, max_value=50, value=40, step=5)
     st.markdown("---")
-    
     generate_btn = st.button("Generate Report", type="primary")
-    
     st.markdown("---")
     st.caption("Powered by Gemini 2.5 Pro")
 
-# Main content
 col1, col2 = st.columns([2, 1])
 
 with col1:
@@ -76,156 +251,108 @@ with col1:
     if generate_btn:
         if company_name:
             if not (use_news or use_trends):
-                st.error("Please enable at least one data source")
+                st.error("Enable at least one data source")
             else:
-                try:
-                    with st.spinner(f"Analyzing {company_name}... This takes 45-60 seconds"):
-                        # Initialize modules
-                        collector = CompetitiveDataCollector()
-                        analyzer = CompetitiveAnalyzer()
-                        
-                        # Progress indicators
-                        progress = st.progress(0)
-                        status = st.empty()
-                        
-                        # Step 1: Collect data
-                        status.text("Step 1/4: Collecting data from sources...")
-                        progress.progress(25)
-                        raw_data = collector.collect_all(company_name, use_news, use_trends)
-                        
-                        # Step 2: Process data
-                        status.text("Step 2/4: Processing and ranking data...")
-                        progress.progress(50)
-                        processed_data = analyzer.process_data(raw_data, company_name, top_n=num_articles)
-                        
-                        # Step 3: Generate report
-                        status.text("Step 3/4: Generating AI insights...")
-                        progress.progress(75)
-                        report = analyzer.generate_insights(processed_data, company_name)
-                        
-                        # Step 4: Save
-                        status.text("Step 4/4: Saving report...")
-                        progress.progress(100)
-                        
-                        # Save to file
-                        reports_dir = Path("reports")
-                        reports_dir.mkdir(exist_ok=True)
-                        filename = f"{company_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.md"
-                        filepath = reports_dir / filename
-                        
-                        with open(filepath, 'w', encoding='utf-8') as f:
-                            f.write(report)
-                        
-                        # Store in session
-                        st.session_state.current_report = report
-                        st.session_state.current_company = company_name
-                        st.session_state.processed_data = processed_data
-                        
-                        progress.empty()
-                        status.empty()
+                with st.spinner(f"Analyzing {company_name}... 45-60 seconds"):
+                    prog = st.progress(0)
+                    status = st.empty()
                     
-                    st.success(f"Report generated for {company_name}!")
+                    status.text("Step 1/4: Collecting data...")
+                    prog.progress(25)
                     
-                except Exception as e:
-                    st.error(f"Error generating report: {str(e)}")
-                    st.exception(e)
+                    status.text("Step 2/4: Processing data...")
+                    prog.progress(50)
+                    
+                    status.text("Step 3/4: Generating insights...")
+                    prog.progress(75)
+                    
+                    report, data = generate_competitive_brief(company_name, use_news, use_trends, num_articles)
+                    
+                    prog.progress(100)
+                    st.session_state.current_report = report
+                    st.session_state.current_company = company_name
+                    st.session_state.processed_data = data
+                    
+                    prog.empty()
+                    status.empty()
+                
+                st.success(f"Report generated for {company_name}!")
         else:
-            st.error("Please enter a company name")
+            st.error("Enter a company name")
     
-    # Display report
-    if st.session_state.current_report:
+    if st.session_state.current_report and st.session_state.processed_data:
         st.markdown("---")
         
         # Metrics
-        if st.session_state.processed_data:
-            data = st.session_state.processed_data
-            news_count = len([d for d in data if d.get('source') == 'News'])
-            
-            col_a, col_b, col_c = st.columns(3)
-            with col_a:
-                st.metric("Articles Analyzed", news_count)
-            with col_b:
-                scores = [d.get('relevance_score', 0) for d in data if 'relevance_score' in d]
-                avg_score = int(sum(scores) / len(scores)) if scores else 0
-                st.metric("Avg Relevance Score", f"{avg_score}/100")
-            with col_c:
-                trends = [d for d in data if d.get('source') == 'Google Trends']
-                if trends and trends[0].get('current_interest_level'):
-                    st.metric("Search Interest", f"{trends[0]['current_interest_level']}/100")
-                else:
-                    st.metric("Search Interest", "N/A")
+        data = st.session_state.processed_data
+        news_ct = len([d for d in data if d.get("source") == "News"])
+        scores = [d.get("relevance_score", 0) for d in data if "relevance_score" in d]
+        avg_rel = int(sum(scores) / len(scores)) if scores else 0
+        trends = [d for d in data if d.get("source") == "Google Trends"]
+        search_int = trends[0].get("current_interest_level") if trends and trends[0].get("current_interest_level") else None
+        
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            st.metric("Articles Analyzed", news_ct)
+        with col_b:
+            delta_text = "High Quality" if avg_rel >= 70 else ("Good Quality" if avg_rel >= 50 else "Low Quality")
+            st.metric("Avg Relevance Score", f"{avg_rel}/100", delta=delta_text)
+        with col_c:
+            st.metric("Search Interest", f"{search_int}/100" if search_int else "N/A")
         
         st.markdown("---")
+        st.subheader("Visual Insights")
         
-        # Download button
-        st.download_button(
-            label="Download Report",
-            data=st.session_state.current_report,
-            file_name=f"{st.session_state.current_company}_{datetime.now().strftime('%Y%m%d')}.md",
-            mime="text/markdown"
-        )
+        viz_col1, viz_col2 = st.columns(2)
+        with viz_col1:
+            fig = create_sentiment_viz(st.session_state.processed_data)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No sentiment data")
         
-        # Display
+        with viz_col2:
+            fig = create_timeline_viz(st.session_state.processed_data)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No timeline data")
+        
+        st.markdown("---")
+        st.download_button("Download Report", st.session_state.current_report,
+                          f"{st.session_state.current_company}_{datetime.now().strftime('%Y%m%d')}.md",
+                          mime="text/markdown")
         st.markdown(st.session_state.current_report)
     
     else:
-        st.info("Enter a company name in the sidebar and click Generate Report")
-        
-        st.markdown("### How it works:")
+        st.info("Enter a company name and click Generate Report")
         st.markdown("""
-        1. **Data Collection**: Fetches 100+ news articles and Google Trends data
-        2. **Smart Filtering**: Deduplicates and ranks by relevance (0-100 score)
-        3. **AI Synthesis**: Gemini 2.5 Pro generates strategic insights
-        4. **Results**: Professional competitive intelligence report in 60 seconds
-        """)
-        
-        st.markdown("### Report Sections:")
-        st.markdown("""
-        - Executive Summary
-        - Recent Key Moves (with dates)
-        - Product Launches & Features
-        - Funding, Partnerships & Hiring
-        - Google Trends Analysis
-        - Competitive Threats & Opportunities
-        - Strategic Recommendations (3-5 actionable items)
-        - Timeline of Key Events
+        ### How it works:
+        1. **Data Collection**: 100+ news articles + Google Trends
+        2. **Smart Filtering**: Deduplication and relevance scoring (0-100)
+        3. **AI Synthesis**: Gemini 2.5 Pro generates insights
+        4. **Visualizations**: Interactive charts
+        5. **Results**: Professional report in 60 seconds
         """)
 
 with col2:
     st.header("Past Reports")
-    
     reports_dir = Path("reports")
     if reports_dir.exists():
         report_files = list(reports_dir.glob("*.md"))
-        
         if report_files:
             st.success(f"Found {len(report_files)} saved reports")
-            
-            selected_report = st.selectbox(
-                "Select a report to view:",
-                report_files,
-                format_func=lambda x: x.stem.replace('_', ' ')
-            )
-            
-            if selected_report:
-                with open(selected_report, 'r') as f:
-                    past_report = f.read()
-                
+            selected = st.selectbox("Select report:", report_files, format_func=lambda x: x.stem.replace('_', ' '))
+            if selected:
+                with open(selected, 'r') as f:
+                    past = f.read()
                 with st.expander("View Report", expanded=False):
-                    st.markdown(past_report)
-                
-                st.download_button(
-                    label="Download This Report",
-                    data=past_report,
-                    file_name=selected_report.name,
-                    mime="text/markdown",
-                    key=f"download_{selected_report.name}"
-                )
+                    st.markdown(past)
+                st.download_button("Download", past, selected.name, mime="text/markdown", key=f"dl_{selected.name}")
         else:
-            st.info("No reports yet. Generate your first one!")
+            st.info("No reports yet")
     else:
-        st.info("No reports yet. Generate your first one!")
+        st.info("No reports yet")
 
-# Footer
 st.markdown("---")
-st.markdown("**Marketing Intelligence Platform** | Week 1: Competitive Intelligence")
+st.markdown("**Marketing Intelligence Platform** | Week 1: Competitive Intelligence Complete")
