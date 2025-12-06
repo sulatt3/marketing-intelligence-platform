@@ -1,6 +1,6 @@
 """
 Marketing Intelligence Platform - Main UI
-Complete with visualizations from V1
+With Wikipedia Pageviews (replacing unreliable Google Trends)
 """
 
 import streamlit as st
@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import google.generativeai as genai
 from newsapi import NewsApiClient
-from pytrends.request import TrendReq
+import requests
 
 # Page config
 st.set_page_config(
@@ -46,33 +46,62 @@ def fetch_news(company: str) -> List[Dict[str, Any]]:
         return []
 
 @st.cache_data(ttl=3600)
-def fetch_trends(company: str) -> List[Dict[str, Any]]:
+def fetch_wikipedia_pageviews(company: str) -> List[Dict[str, Any]]:
+    """Fetch Wikipedia pageviews as interest metric (replaces Google Trends)"""
     try:
-        pytrends = TrendReq(hl="en-US", tz=360)
-        pytrends.build_payload([company], timeframe="today 3-m", geo="")
-        df = pytrends.interest_over_time()
-        if df.empty or company not in df.columns:
-            return [{"source": "Google Trends", "current_interest_level": None}]
-        interest = df[company]
-        mean, std = interest.mean(), interest.std()
-        spikes = interest[interest > mean + 1.5 * std]
+        # Step 1: Search for Wikipedia article
+        search_url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={company}&limit=1&format=json"
+        search_resp = requests.get(search_url, timeout=10)
+        titles = search_resp.json()[1]
+        
+        if not titles:
+            return [{"source": "Wikipedia", "total_pageviews": None}]
+        
+        # Step 2: Get article title and format for API
+        title = titles[0].replace(" ", "_")
+        
+        # Step 3: Get pageviews for last 30 days
+        end_date = datetime.now().strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
+        
+        pageviews_url = f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{title}/daily/{start_date}/{end_date}"
+        pageviews_resp = requests.get(pageviews_url, timeout=10)
+        data = pageviews_resp.json()
+        
+        views = [item['views'] for item in data.get('items', [])]
+        
+        if not views:
+            return [{"source": "Wikipedia", "total_pageviews": None}]
+        
+        # Calculate statistics
+        total_views = sum(views)
+        avg_views = int(total_views / len(views))
+        peak_views = max(views)
+        
+        # Calculate trend direction (last 7 days vs previous 23 days)
+        recent_avg = sum(views[-7:]) / 7 if len(views) >= 7 else avg_views
+        older_avg = sum(views[:-7]) / len(views[:-7]) if len(views) > 7 else avg_views
+        
+        trend = "rising" if recent_avg > older_avg * 1.1 else ("declining" if recent_avg < older_avg * 0.9 else "stable")
+        
         return [{
-            "source": "Google Trends",
-            "current_interest_level": int(interest.iloc[-1]),
-            "peak_90d": int(interest.max()),
-            "average_90d": int(mean),
-            "spike_dates": [idx.strftime("%Y-%m-%d") for idx in spikes.index],
-            "trend_direction": "rising" if interest.iloc[-7:].mean() > mean else "stable/declining"
+            "source": "Wikipedia",
+            "total_pageviews": total_views,
+            "avg_daily_pageviews": avg_views,
+            "peak_daily_pageviews": peak_views,
+            "trend_direction": trend,
+            "article_title": titles[0]
         }]
+        
     except Exception as e:
-        return [{"source": "Google Trends", "current_interest_level": None}]
+        return [{"source": "Wikipedia", "total_pageviews": None}]
 
-def collect_all_data(company: str, use_news: bool, use_trends: bool) -> List[Dict[str, Any]]:
+def collect_all_data(company: str, use_news: bool, use_wikipedia: bool) -> List[Dict[str, Any]]:
     fetchers = []
     if use_news:
         fetchers.append(fetch_news)
-    if use_trends:
-        fetchers.append(fetch_trends)
+    if use_wikipedia:
+        fetchers.append(fetch_wikipedia_pageviews)
     all_data = []
     if fetchers:
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -131,12 +160,14 @@ def analyze_sentiment(text: str) -> str:
 
 def build_synthesis_prompt(processed_data: List[Dict[str, Any]], company: str) -> str:
     news = [i for i in processed_data if i.get("source") == "News"]
-    trends = [i for i in processed_data if i.get("source") == "Google Trends"]
+    wiki = [i for i in processed_data if i.get("source") == "Wikipedia"]
     news_text = "\n".join([f"[{i}] {item['title']} ({item['date']})" for i, item in enumerate(news, 1)])
-    trends_text = ""
-    if trends and trends[0].get("current_interest_level"):
-        t = trends[0]
-        trends_text = f"\nTrends: {t['current_interest_level']}/100, {t['trend_direction']}, Spikes: {', '.join(t.get('spike_dates', []))}"
+    
+    wiki_text = ""
+    if wiki and wiki[0].get("total_pageviews"):
+        w = wiki[0]
+        wiki_text = f"\nWikipedia Interest (Last 30 Days):\n- Article: {w.get('article_title', 'N/A')}\n- Total Pageviews: {w['total_pageviews']:,}\n- Avg Daily Pageviews: {w['avg_daily_pageviews']:,}\n- Peak Daily: {w['peak_daily_pageviews']:,}\n- Trend: {w['trend_direction']}"
+    
     return f"""You are an expert competitive intelligence analyst. Analyze {company} and create a comprehensive brief.
 
 # Competitive Intelligence Brief: {company}
@@ -154,8 +185,8 @@ New products, features, updates
 ## Funding, Partnerships & Hiring
 Funding rounds, partnerships, acquisitions, key hires
 
-## Google Trends Analysis
-Analyze search interest, spikes, trend direction
+## Market Interest Analysis
+Analyze Wikipedia pageviews data. What does the trend direction indicate? High pageviews = high public interest.
 
 ## Competitive Threats & Opportunities
 What threats does {company} pose? What opportunities/weaknesses exist?
@@ -173,11 +204,11 @@ Be specific, cite dates, focus on facts. 1000-1500 words.
 
 DATA:
 {news_text}
-{trends_text}"""
+{wiki_text}"""
 
 @st.cache_data(ttl=3600)
-def generate_competitive_brief(company: str, use_news: bool, use_trends: bool, num_articles: int) -> tuple:
-    raw = collect_all_data(company, use_news, use_trends)
+def generate_competitive_brief(company: str, use_news: bool, use_wikipedia: bool, num_articles: int) -> tuple:
+    raw = collect_all_data(company, use_news, use_wikipedia)
     if not raw:
         return "# Error\n\nNo data sources enabled.", None
     processed = process_data(raw, company, top_n=num_articles)
@@ -196,7 +227,7 @@ def create_timeline_viz(processed_data):
     df = pd.DataFrame(news)
     df["date"] = pd.to_datetime(df["date"])
     fig = px.scatter(df, x="date", y="relevance_score", color="sentiment", size="relevance_score",
-                     hover_data=["title"], title="Timeline of Articles (Size = Relevance Score)",
+                     hover_data=["title"], title="Article Timeline",
                      color_discrete_map={"positive": "#28a745", "negative": "#dc3545", "neutral": "#6c757d"})
     fig.update_layout(height=450, hovermode="closest")
     return fig
@@ -225,7 +256,7 @@ if "processed_data" not in st.session_state:
 
 # UI
 st.title("Marketing Intelligence Platform")
-st.markdown("**Status:** Week 1 Complete - Competitive Intelligence Module")
+st.markdown("**Competitive Intelligence Module**")
 st.markdown("---")
 
 with st.sidebar:
@@ -234,7 +265,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("Data Sources")
     use_news = st.checkbox("News API", value=True, help="Recent articles from last 30 days")
-    use_trends = st.checkbox("Google Trends", value=True, help="Search interest data")
+    use_wikipedia = st.checkbox("Wikipedia Pageviews", value=True, help="Public interest metric")
     st.markdown("---")
     st.subheader("Analysis Options")
     num_articles = st.slider("Articles to analyze", min_value=20, max_value=50, value=40, step=5)
@@ -250,10 +281,10 @@ with col1:
     
     if generate_btn:
         if company_name:
-            if not (use_news or use_trends):
+            if not (use_news or use_wikipedia):
                 st.error("Enable at least one data source")
             else:
-                with st.spinner(f"Analyzing {company_name}... 45-60 seconds"):
+                with st.spinner(f"Analyzing {company_name}..."):
                     prog = st.progress(0)
                     status = st.empty()
                     
@@ -266,7 +297,7 @@ with col1:
                     status.text("Step 3/4: Generating insights...")
                     prog.progress(75)
                     
-                    report, data = generate_competitive_brief(company_name, use_news, use_trends, num_articles)
+                    report, data = generate_competitive_brief(company_name, use_news, use_wikipedia, num_articles)
                     
                     prog.progress(100)
                     st.session_state.current_report = report
@@ -276,7 +307,7 @@ with col1:
                     prog.empty()
                     status.empty()
                 
-                st.success(f"Report generated for {company_name}!")
+                st.success(f"Analysis complete")
         else:
             st.error("Enter a company name")
     
@@ -288,8 +319,8 @@ with col1:
         news_ct = len([d for d in data if d.get("source") == "News"])
         scores = [d.get("relevance_score", 0) for d in data if "relevance_score" in d]
         avg_rel = int(sum(scores) / len(scores)) if scores else 0
-        trends = [d for d in data if d.get("source") == "Google Trends"]
-        search_int = trends[0].get("current_interest_level") if trends and trends[0].get("current_interest_level") else None
+        wiki = [d for d in data if d.get("source") == "Wikipedia"]
+        pageviews = wiki[0].get("avg_daily_pageviews") if wiki and wiki[0].get("avg_daily_pageviews") else None
         
         col_a, col_b, col_c = st.columns(3)
         with col_a:
@@ -298,7 +329,10 @@ with col1:
             delta_text = "High Quality" if avg_rel >= 70 else ("Good Quality" if avg_rel >= 50 else "Low Quality")
             st.metric("Avg Relevance Score", f"{avg_rel}/100", delta=delta_text)
         with col_c:
-            st.metric("Search Interest", f"{search_int}/100" if search_int else "N/A")
+            if pageviews:
+                st.metric("Avg Daily Wikipedia Views", f"{pageviews:,}")
+            else:
+                st.metric("Wikipedia Views", "N/A")
         
         st.markdown("---")
         st.subheader("Visual Insights")
@@ -328,10 +362,10 @@ with col1:
         st.info("Enter a company name and click Generate Report")
         st.markdown("""
         ### How it works:
-        1. **Data Collection**: 100+ news articles + Google Trends
+        1. **Data Collection**: 100+ news articles + Wikipedia pageviews
         2. **Smart Filtering**: Deduplication and relevance scoring (0-100)
         3. **AI Synthesis**: Gemini 2.5 Pro generates insights
-        4. **Visualizations**: Interactive charts
+        4. **Visualizations**: Interactive sentiment and timeline charts
         5. **Results**: Professional report in 60 seconds
         """)
 
@@ -355,4 +389,4 @@ with col2:
         st.info("No reports yet")
 
 st.markdown("---")
-st.markdown("**Marketing Intelligence Platform** | Week 1: Competitive Intelligence Complete")
+st.markdown("**Marketing Intelligence Platform** | Competitive Intelligence")
