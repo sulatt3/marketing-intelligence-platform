@@ -1,6 +1,5 @@
 """
 Marketing Intelligence Platform - Main UI
-With Wikipedia Pageviews (replacing unreliable Google Trends)
 """
 
 import streamlit as st
@@ -29,7 +28,11 @@ st.set_page_config(
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("models/gemini-2.5-pro")
 
-# Caching for performance
+# Wikipedia API headers (required to avoid 403 errors)
+WIKI_HEADERS = {
+    'User-Agent': 'Marketing Intelligence Platform/1.0 (https://github.com/sulatt3/marketing-intelligence-platform; su.h.latt3@gmail.com)'
+}
+
 @st.cache_data(ttl=3600)
 def fetch_news(company: str) -> List[Dict[str, Any]]:
     try:
@@ -49,54 +52,52 @@ def fetch_news(company: str) -> List[Dict[str, Any]]:
 def fetch_wikipedia_pageviews(company: str) -> List[Dict[str, Any]]:
     """Fetch Wikipedia pageviews as interest metric"""
     try:
-        # Define User-Agent header
-        headers = {
-            'User-Agent': 'Marketing Intelligence Platform/1.0 (https://github.com/sulatt3/marketing-intelligence-platform; su.h.latt3@gmail.com)'
-        }
-        
-        # Step 1: Search for article - ADD headers HERE
+        # Search for Wikipedia article
         search_url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={company}&limit=1&format=json"
-        search_resp = requests.get(search_url, headers=headers, timeout=10)  # ← Added headers
-        titles = search_resp.json()[1]
+        search_resp = requests.get(search_url, headers=WIKI_HEADERS, timeout=10)
         
+        if search_resp.status_code != 200:
+            return [{"source": "Wikipedia", "total_pageviews": None}]
+        
+        titles = search_resp.json()[1]
         if not titles:
             return [{"source": "Wikipedia", "total_pageviews": None}]
         
         title = titles[0].replace(" ", "_")
         
-        # Step 2: Get pageviews - ADD headers HERE TOO
+        # Get pageviews for last 30 days
         end_date = datetime.now().strftime("%Y%m%d")
         start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
         
         pageviews_url = f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{title}/daily/{start_date}/{end_date}"
-        pageviews_resp = requests.get(pageviews_url, headers=headers, timeout=10)  # ← Added headers
+        pageviews_resp = requests.get(pageviews_url, headers=WIKI_HEADERS, timeout=10)
         
-        if pageviews_resp.status_code == 200:
-            data = pageviews_resp.json()
-            views = [item['views'] for item in data.get('items', [])]
-            
-            if not views:
-                return [{"source": "Wikipedia", "total_pageviews": None}]
-            
-            total_views = sum(views)
-            avg_views = int(total_views / len(views))
-            peak_views = max(views)
-            
-            recent_avg = sum(views[-7:]) / 7 if len(views) >= 7 else avg_views
-            older_avg = sum(views[:-7]) / len(views[:-7]) if len(views) > 7 else avg_views
-            trend = "rising" if recent_avg > older_avg * 1.1 else ("declining" if recent_avg < older_avg * 0.9 else "stable")
-            
-            return [{
-                "source": "Wikipedia",
-                "total_pageviews": total_views,
-                "avg_daily_pageviews": avg_views,
-                "peak_daily_pageviews": peak_views,
-                "trend_direction": trend,
-                "article_title": titles[0]
-            }]
-        else:
+        if pageviews_resp.status_code != 200:
             return [{"source": "Wikipedia", "total_pageviews": None}]
-            
+        
+        data = pageviews_resp.json()
+        views = [item['views'] for item in data.get('items', [])]
+        
+        if not views:
+            return [{"source": "Wikipedia", "total_pageviews": None}]
+        
+        total_views = sum(views)
+        avg_views = int(total_views / len(views))
+        peak_views = max(views)
+        
+        recent_avg = sum(views[-7:]) / 7 if len(views) >= 7 else avg_views
+        older_avg = sum(views[:-7]) / len(views[:-7]) if len(views) > 7 else avg_views
+        trend = "rising" if recent_avg > older_avg * 1.1 else ("declining" if recent_avg < older_avg * 0.9 else "stable")
+        
+        return [{
+            "source": "Wikipedia",
+            "total_pageviews": total_views,
+            "avg_daily_pageviews": avg_views,
+            "peak_daily_pageviews": peak_views,
+            "trend_direction": trend,
+            "article_title": titles[0]
+        }]
+        
     except Exception:
         return [{"source": "Wikipedia", "total_pageviews": None}]
 
@@ -190,7 +191,7 @@ New products, features, updates
 Funding rounds, partnerships, acquisitions, key hires
 
 ## Market Interest Analysis
-Analyze Wikipedia pageviews data. What does the trend direction indicate? High pageviews = high public interest.
+Analyze Wikipedia pageviews data. What does the trend direction indicate? High pageviews indicate high public interest.
 
 ## Competitive Threats & Opportunities
 What threats does {company} pose? What opportunities/weaknesses exist?
@@ -269,10 +270,11 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("Data Sources")
     use_news = st.checkbox("News API", value=True, help="Recent articles from last 30 days")
-    use_wikipedia = st.checkbox("Wikipedia Pageviews", value=True, help="Public interest metric")
+    use_wikipedia = st.checkbox("Wikipedia Pageviews", value=True, help="Public interest metric from Wikipedia article views")
     st.markdown("---")
     st.subheader("Analysis Options")
-    num_articles = st.slider("Articles to analyze", min_value=20, max_value=100, value=50, step=5)
+    num_articles = st.slider("Articles to analyze", min_value=20, max_value=100, value=40, step=10, 
+                             help="Number of top-ranked articles to analyze. Articles are deduplicated and ranked by relevance score before analysis.")
     st.markdown("---")
     generate_btn = st.button("Generate Report", type="primary")
     st.markdown("---")
@@ -328,15 +330,18 @@ with col1:
         
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            st.metric("Articles Analyzed", news_ct)
+            st.metric("Articles Analyzed", news_ct, 
+                     help="Number of unique articles after deduplication. Duplicates are removed based on 85% title similarity.")
         with col_b:
             delta_text = "High Quality" if avg_rel >= 70 else ("Good Quality" if avg_rel >= 50 else "Low Quality")
-            st.metric("Avg Relevance Score", f"{avg_rel}/100", delta=delta_text)
+            st.metric("Avg Relevance Score", f"{avg_rel}/100", delta=delta_text,
+                     help="Average relevance score: 40pts for company in title, 20pts for content mentions, 20pts for frequency, 15pts for recency, 5pts for engagement")
         with col_c:
             if pageviews:
-                st.metric("Avg Daily Wikipedia Views", f"{pageviews:,}")
+                st.metric("Avg Daily Wikipedia Views", f"{pageviews:,}",
+                         help="Average daily pageviews on the company's Wikipedia article over the last 30 days. Higher views indicate greater public interest.")
             else:
-                st.metric("Wikipedia Views", "N/A")
+                st.metric("Wikipedia Views", "N/A", help="No Wikipedia article found or data unavailable")
         
         st.markdown("---")
         st.subheader("Visual Insights")
