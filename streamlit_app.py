@@ -59,37 +59,37 @@ def fetch_wikipedia_pageviews(company: str) -> List[Dict[str, Any]]:
     try:
         search_url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={company}&limit=1&format=json"
         search_resp = requests.get(search_url, headers=WIKI_HEADERS, timeout=10)
-        
+
         if search_resp.status_code != 200:
             return [{"source": "Wikipedia", "total_pageviews": None}]
-        
+
         titles = search_resp.json()[1]
         if not titles:
             return [{"source": "Wikipedia", "total_pageviews": None}]
-        
+
         title = titles[0].replace(" ", "_")
         end_date = datetime.now().strftime("%Y%m%d")
         start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
-        
+
         pageviews_url = f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{title}/daily/{start_date}/{end_date}"
         pageviews_resp = requests.get(pageviews_url, headers=WIKI_HEADERS, timeout=10)
-        
+
         if pageviews_resp.status_code != 200:
             return [{"source": "Wikipedia", "total_pageviews": None}]
-        
+
         data = pageviews_resp.json()
         views = [item['views'] for item in data.get('items', [])]
-        
+
         if not views:
             return [{"source": "Wikipedia", "total_pageviews": None}]
-        
+
         total_views = sum(views)
         avg_views = int(total_views / len(views))
         peak_views = max(views)
         recent_avg = sum(views[-7:]) / 7 if len(views) >= 7 else avg_views
         older_avg = sum(views[:-7]) / len(views[:-7]) if len(views) > 7 else avg_views
         trend = "rising" if recent_avg > older_avg * 1.1 else ("declining" if recent_avg < older_avg * 0.9 else "stable")
-        
+
         return [{
             "source": "Wikipedia",
             "total_pageviews": total_views,
@@ -167,12 +167,12 @@ def build_synthesis_prompt(processed_data: List[Dict[str, Any]], company: str) -
     news = [i for i in processed_data if i.get("source") == "News"]
     wiki = [i for i in processed_data if i.get("source") == "Wikipedia"]
     news_text = "\n".join([f"[{i}] {item['title']} ({item['date']})" for i, item in enumerate(news, 1)])
-    
+
     wiki_text = ""
     if wiki and wiki[0].get("total_pageviews"):
         w = wiki[0]
         wiki_text = f"\nWikipedia Interest (Last 30 Days):\n- Article: {w.get('article_title', 'N/A')}\n- Total Pageviews: {w['total_pageviews']:,}\n- Avg Daily Pageviews: {w['avg_daily_pageviews']:,}\n- Peak Daily: {w['peak_daily_pageviews']:,}\n- Trend: {w['trend_direction']}"
-    
+
     return f"""You are an expert competitive intelligence analyst. Analyze {company} and create a comprehensive brief.
 
 # Competitive Intelligence Brief: {company}
@@ -265,7 +265,7 @@ def generate_customer_data(n_customers=1000):
         'days_since_last_purchase': np.random.exponential(30, n_customers),
         'avg_order_value': [],
     }
-    
+
     for i in range(n_customers):
         if customer_data['purchase_count'][i] > 0:
             customer_data['avg_order_value'].append(
@@ -273,7 +273,7 @@ def generate_customer_data(n_customers=1000):
             )
         else:
             customer_data['avg_order_value'].append(0)
-    
+
     customers_df = pd.DataFrame(customer_data)
     customers_df['sentiment_score'] = np.random.uniform(-1, 1, n_customers)
     return customers_df
@@ -285,7 +285,7 @@ def perform_segmentation(customers_df, n_clusters=5):
         'total_spend', 'purchase_count', 'click_count',
         'days_since_last_purchase', 'avg_order_value'
     ]].fillna(0)
-    
+
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
@@ -303,10 +303,10 @@ def assign_segment_labels(customers_df):
         'days_since_last_purchase': 'mean',
         'avg_order_value': 'mean'
     }).round(2)
-    
-    segment_stats.columns = ['customer_count', 'avg_spend', 'avg_purchases', 
+
+    segment_stats.columns = ['customer_count', 'avg_spend', 'avg_purchases',
                              'avg_clicks', 'avg_recency', 'avg_order_value']
-    
+
     def get_label(segment_num, stats):
         row = stats.loc[segment_num]
         if row['avg_spend'] > 2000 and row['avg_purchases'] > 4:
@@ -319,10 +319,10 @@ def assign_segment_labels(customers_df):
             return "At-Risk Dormant"
         else:
             return "Casual Browsers"
-    
+
     segment_labels = {seg: get_label(seg, segment_stats) for seg in range(5)}
     customers_df['segment_label'] = customers_df['segment'].map(segment_labels)
-    
+
     def estimate_conversion(segment_num, stats):
         row = stats.loc[segment_num]
         if row['avg_clicks'] > 0:
@@ -330,9 +330,9 @@ def assign_segment_labels(customers_df):
             recency_factor = 1 / (1 + (row['avg_recency'] / 30))
             return round(base_rate * recency_factor, 2)
         return 0
-    
+
     segment_stats['conversion_rate'] = [estimate_conversion(seg, segment_stats) for seg in range(5)]
-    
+
     return customers_df, segment_stats, segment_labels
 
 # ==================== SESSION STATE ====================
@@ -374,12 +374,12 @@ with tab1:
         num_articles = st.slider("Articles to analyze", 20, 100, 40, 10)
         st.markdown("---")
         generate_btn = st.button("Generate Report", type="primary", key="comp_generate")
-    
+
     col1, col2 = st.columns([2, 1])
-    
+
     with col1:
         st.header("Competitive Intelligence Report")
-        
+
         if generate_btn:
             if company_name:
                 if not (use_news or use_wikipedia):
@@ -388,33 +388,33 @@ with tab1:
                     with st.spinner(f"Analyzing {company_name}..."):
                         prog = st.progress(0)
                         status = st.empty()
-                        
+
                         status.text("Step 1/4: Collecting data...")
                         prog.progress(25)
-                        
+
                         status.text("Step 2/4: Processing data...")
                         prog.progress(50)
-                        
+
                         status.text("Step 3/4: Generating insights...")
                         prog.progress(75)
-                        
+
                         report, data = generate_competitive_brief(company_name, use_news, use_wikipedia, num_articles)
-                        
+
                         prog.progress(100)
                         st.session_state.comp_report = report
                         st.session_state.comp_company = company_name
                         st.session_state.comp_data = data
-                        
+
                         prog.empty()
                         status.empty()
-                    
+
                     st.success("Analysis complete")
             else:
                 st.error("Enter a company name")
-        
+
         if st.session_state.comp_report and st.session_state.comp_data:
             st.markdown("---")
-            
+
             # Metrics
             data = st.session_state.comp_data
             news_ct = len([d for d in data if d.get("source") == "News"])
@@ -422,7 +422,7 @@ with tab1:
             avg_rel = int(sum(scores) / len(scores)) if scores else 0
             wiki = [d for d in data if d.get("source") == "Wikipedia"]
             pageviews = wiki[0].get("avg_daily_pageviews") if wiki and wiki[0].get("avg_daily_pageviews") else None
-            
+
             col_a, col_b, col_c = st.columns(3)
             with col_a:
                 st.metric("Articles Analyzed", news_ct)
@@ -434,27 +434,27 @@ with tab1:
                     st.metric("Avg Daily Wikipedia Views", f"{pageviews:,}")
                 else:
                     st.metric("Wikipedia Views", "N/A")
-            
+
             st.markdown("---")
             st.subheader("Visual Insights")
-            
+
             viz_col1, viz_col2 = st.columns(2)
             with viz_col1:
                 fig = create_competitive_sentiment_viz(st.session_state.comp_data)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
-            
+
             with viz_col2:
                 fig = create_competitive_timeline_viz(st.session_state.comp_data)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
-            
+
             st.markdown("---")
             st.download_button("Download Report", st.session_state.comp_report,
                               f"{st.session_state.comp_company}_{datetime.now().strftime('%Y%m%d')}.md",
                               mime="text/markdown")
             st.markdown(st.session_state.comp_report)
-        
+
         else:
             st.info("Enter a company name in the sidebar and click Generate Report")
 
@@ -471,26 +471,26 @@ with tab2:
             st.session_state.customers_df = None
         st.markdown("---")
         st.caption("Based on Segmint methodology (20M+ events processed)")
-    
+
     st.header("Customer Intelligence")
-    
+
     # Methodology explanation
     with st.expander("How Segmentation Works", expanded=False):
         st.markdown("""
         ### Segmentation Methodology
-        
+
         **Based on Production Segmint System:**
         - Original system processed 20+ million customer events
         - Achieved conversion rates up to 28.95%
         - This demo uses the same core methodology on synthetic data
-        
+
         **Features Used for Clustering:**
         1. **Total Spend** - Lifetime customer value
         2. **Purchase Count** - Transaction frequency
         3. **Click Count** - Engagement level
         4. **Days Since Last Purchase** - Recency (churn risk indicator)
         5. **Average Order Value** - Purchase size patterns
-        
+
         **Clustering Process:**
         1. Features are standardized (zero mean, unit variance)
         2. K-means algorithm groups similar customers into segments
@@ -500,20 +500,20 @@ with tab2:
            - **Engaged Loyalists:** Moderate spend + high engagement
            - **At-Risk Dormant:** High recency (inactive customers)
            - **Casual Browsers:** Moderate behavior across all metrics
-        
+
         **Conversion Rate Calculation:**
 ```
         Base Rate = (Avg Purchases / Avg Clicks) × 100
         Recency Penalty = 1 / (1 + Days Since Purchase / 30)
         Final Rate = Base Rate × Recency Penalty
 ```
-        
+
         **Practical Use:**
         - Target high-value segments with premium offers
         - Re-engage at-risk customers with win-back campaigns
         - Nurture engaged loyalists for lifetime value
         """)
-    
+
     # Generate or load data
     if st.session_state.customers_df is None:
         with st.spinner("Generating customer segments..."):
@@ -523,11 +523,11 @@ with tab2:
             st.session_state.customers_df = customers_df
             st.session_state.segment_stats = segment_stats
             st.session_state.segment_labels = segment_labels
-    
+
     customers_df = st.session_state.customers_df
     segment_stats = st.session_state.segment_stats
     segment_labels = st.session_state.segment_labels
-    
+
     # Key Metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -538,21 +538,21 @@ with tab2:
         st.metric("Active Segments", n_clusters)
     with col4:
         st.metric("Avg Conversion", f"{segment_stats['conversion_rate'].mean():.1f}%")
-    
+
     st.markdown("---")
-    
+
     # Sub-tabs for different views
     subtab1, subtab2, subtab3, subtab4 = st.tabs(["Overview", "Segments", "Analysis", "Export"])
-    
+
     with subtab1:
         st.subheader("Segment Distribution")
-        
+
         # Pie chart
         segment_counts = customers_df['segment_label'].value_counts()
         fig = px.pie(values=segment_counts.values, names=segment_counts.index,
                      title="Customer Distribution by Segment")
         st.plotly_chart(fig, use_container_width=True)
-        
+
         # Scatter plot
         st.subheader("Purchase Behavior by Segment")
         fig = px.scatter(customers_df, x='purchase_count', y='total_spend',
@@ -560,13 +560,13 @@ with tab2:
                         hover_data=['customer_id', 'days_since_last_purchase'],
                         title="Customer Segments: Purchases vs Spend")
         st.plotly_chart(fig, use_container_width=True)
-    
+
     with subtab2:
         st.subheader("Segment Performance")
-        
+
         display_stats = segment_stats.copy()
         display_stats.index = [segment_labels[i] for i in display_stats.index]
-        
+
         st.dataframe(
             display_stats.style.format({
                 'avg_spend': '${:.2f}',
@@ -578,7 +578,7 @@ with tab2:
             }),
             use_container_width=True
         )
-        
+
         # Conversion rate bar chart
         st.subheader("Conversion Rates by Segment")
         fig = px.bar(
@@ -588,40 +588,40 @@ with tab2:
             title="Segment Conversion Rates"
         )
         st.plotly_chart(fig, use_container_width=True)
-    
+
     with subtab3:
         st.subheader("Behavioral Analysis")
-        
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
             fig = px.box(customers_df, x='segment_label', y='total_spend',
                         title="Spend Distribution by Segment")
             st.plotly_chart(fig, use_container_width=True)
-        
+
         with col2:
             fig = px.box(customers_df, x='segment_label', y='days_since_last_purchase',
                         title="Recency by Segment")
             st.plotly_chart(fig, use_container_width=True)
-        
+
         # Heatmap
         st.subheader("Segment Characteristics Heatmap")
-        heatmap_data = segment_stats[['avg_spend', 'avg_purchases', 'avg_clicks', 
+        heatmap_data = segment_stats[['avg_spend', 'avg_purchases', 'avg_clicks',
                                        'avg_recency', 'conversion_rate']].T
         heatmap_data.columns = [segment_labels[i] for i in heatmap_data.columns]
         heatmap_normalized = (heatmap_data - heatmap_data.min()) / (heatmap_data.max() - heatmap_data.min())
-        
+
         fig = px.imshow(heatmap_normalized,
                        labels=dict(x="Segment", y="Metric", color="Normalized Value"),
                        x=heatmap_normalized.columns, y=heatmap_normalized.index,
                        title="Normalized Segment Characteristics")
         st.plotly_chart(fig, use_container_width=True)
-    
+
     with subtab4:
         st.subheader("Export Data")
-        
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
             csv = customers_df.to_csv(index=False)
             st.download_button(
@@ -631,7 +631,7 @@ with tab2:
                 mime="text/csv",
                 key="download_customers"
             )
-        
+
         with col2:
             summary_csv = segment_stats.to_csv()
             st.download_button(
@@ -641,7 +641,7 @@ with tab2:
                 mime="text/csv",
                 key="download_summary"
             )
-        
+
         st.info("Use these exports for further analysis or integration with your CRM system")
 
 # Footer
