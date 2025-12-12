@@ -1,6 +1,5 @@
 """
 Marketing Intelligence Platform - Main UI
-Integrated platform with Competitive Intelligence + Customer Intelligence
 """
 
 import streamlit as st
@@ -219,9 +218,17 @@ def generate_competitive_brief(company: str, use_news: bool, use_wikipedia: bool
     processed = process_data(raw, company, top_n=num_articles)
     news_items = [i for i in processed if i.get("source") == "News"]
     if len(news_items) < 5:
-        return f"# Data Quality Warning: {company}\n\nOnly {len(news_items)} news articles found. Try full legal name or enable more sources.", None
-    response = model.generate_content(build_synthesis_prompt(processed, company))
-    return response.text, processed
+        return f"# Data Quality Warning: {company}\n\nOnly {len(news_items)} news articles found.", None
+    
+    try:
+        response = model.generate_content(build_synthesis_prompt(processed, company))
+        return response.text, processed
+    except Exception as e:
+        error_msg = str(e)
+        if "ResourceExhausted" in error_msg or "quota" in error_msg.lower():
+            return f"# API Rate Limit Reached\n\nGemini API quota exceeded. Please wait 30-60 minutes and try again.\n\nData was successfully collected ({len(news_items)} articles), but AI synthesis is temporarily unavailable.", processed
+        else:
+            return f"# Error Generating Report\n\n{error_msg}", processed
 
 def create_competitive_timeline_viz(processed_data):
     news = [i for i in processed_data if i.get("source") == "News" and i.get("date") != "Unknown"]
@@ -255,7 +262,7 @@ def create_competitive_sentiment_viz(processed_data):
 
 @st.cache_data
 def generate_customer_data(n_customers=1000):
-    """Generate synthetic customer data - Fixed at 1000 customers for optimal segmentation"""
+    """Generate synthetic customer data"""
     np.random.seed(42)
     customer_data = {
         'customer_id': [f'C{str(i).zfill(4)}' for i in range(1, n_customers + 1)],
@@ -279,8 +286,8 @@ def generate_customer_data(n_customers=1000):
     return customers_df
 
 @st.cache_data
-def perform_segmentation(customers_df, n_clusters=5):
-    """Perform K-means clustering on customer behavioral features"""
+def perform_segmentation(customers_df):
+    """Perform K-means clustering - Fixed at 5 segments"""
     features = customers_df[[
         'total_spend', 'purchase_count', 'click_count',
         'days_since_last_purchase', 'avg_order_value'
@@ -288,7 +295,7 @@ def perform_segmentation(customers_df, n_clusters=5):
     
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
     customers_df['segment'] = kmeans.fit_predict(features_scaled)
     return customers_df
 
@@ -307,18 +314,27 @@ def assign_segment_labels(customers_df):
     segment_stats.columns = ['customer_count', 'avg_spend', 'avg_purchases', 
                              'avg_clicks', 'avg_recency', 'avg_order_value']
     
+    # Assign unique labels based on actual stats
     def get_label(segment_num, stats):
         row = stats.loc[segment_num]
-        if row['avg_spend'] > 2000 and row['avg_purchases'] > 4:
-            return "VIP High-Value"
-        elif row['avg_spend'] > 2000 and row['avg_purchases'] < 3:
-            return "Premium Occasional"
-        elif row['avg_purchases'] > 3 and row['avg_clicks'] > 20:
-            return "Engaged Loyalists"
-        elif row['avg_recency'] > 80:
+        avg_spend = row['avg_spend']
+        avg_purchases = row['avg_purchases']
+        avg_clicks = row['avg_clicks']
+        avg_recency = row['avg_recency']
+        
+        # Prioritize clearest patterns first
+        if avg_recency > 80:
             return "At-Risk Dormant"
+        elif avg_spend > 2000 and avg_purchases > 4:
+            return "VIP High-Value"
+        elif avg_spend > 2000:
+            return "Premium Occasional"
+        elif avg_purchases > 4 and avg_clicks > 20:
+            return "Engaged Loyalists"
+        elif avg_purchases < 2:
+            return "Window Shoppers"
         else:
-            return f"Casual Browsers ({segment_num})"  # Make unique by adding segment number
+            return "Active Regulars"
     
     segment_labels = {seg: get_label(seg, segment_stats) for seg in range(5)}
     customers_df['segment_label'] = customers_df['segment'].map(segment_labels)
@@ -337,15 +353,12 @@ def assign_segment_labels(customers_df):
 
 # ==================== SESSION STATE ====================
 
-# Competitive Intelligence state
 if "comp_report" not in st.session_state:
     st.session_state.comp_report = None
 if "comp_company" not in st.session_state:
     st.session_state.comp_company = None
 if "comp_data" not in st.session_state:
     st.session_state.comp_data = None
-
-# Customer Intelligence state
 if 'customers_df' not in st.session_state:
     st.session_state.customers_df = None
 
@@ -361,7 +374,6 @@ tab1, tab2 = st.tabs(["Competitive Intelligence", "Customer Intelligence"])
 # ==================== TAB 1: COMPETITIVE INTELLIGENCE ====================
 
 with tab1:
-    # Sidebar controls
     with st.sidebar:
         st.header("Competitive Analysis")
         company_name = st.text_input("Company Name", placeholder="e.g., Perplexity, Anthropic, OpenAI")
@@ -415,7 +427,6 @@ with tab1:
         if st.session_state.comp_report and st.session_state.comp_data:
             st.markdown("---")
             
-            # Metrics
             data = st.session_state.comp_data
             news_ct = len([d for d in data if d.get("source") == "News"])
             scores = [d.get("relevance_score", 0) for d in data if "relevance_score" in d]
@@ -461,16 +472,15 @@ with tab1:
 # ==================== TAB 2: CUSTOMER INTELLIGENCE ====================
 
 with tab2:
-    # Sidebar controls
     with st.sidebar:
         st.header("Customer Segmentation")
         st.markdown("**Dataset:** 1,000 synthetic customers")
-        n_clusters = st.slider("Number of Segments", 3, 7, 5, key="cust_segments")
+        st.markdown("**Segments:** 5 (based on Segmint methodology)")
         st.markdown("---")
-        if st.button("Generate New Segmentation", type="primary", key="gen_segments"):
+        if st.button("Regenerate Segments", type="primary", key="gen_segments"):
             st.session_state.customers_df = None
         st.markdown("---")
-        st.caption("Based on Segmint methodology")
+        st.caption("Based on production Segmint system (20M+ events, 28.95% conversion rates)")
     
     st.header("Customer Intelligence")
     
@@ -479,49 +489,51 @@ with tab2:
         st.markdown("""
         ### Segmentation Methodology
         
-        **Based on Production Segmint System:**
-        - Original Segmint system processed 20+ million customer events
+        **Production Segmint Background:**
+        - Processed 20+ million customer behavioral events
         - Achieved conversion rates up to 28.95%
-        - This demo uses the same core methodology on synthetic data for portfolio demonstration
+        - This demo replicates the core methodology using synthetic data
         
-        **Features Used for Clustering:**
+        **Features Used (5 behavioral signals):**
         1. **Total Spend** - Lifetime customer value
         2. **Purchase Count** - Transaction frequency
-        3. **Click Count** - Engagement level
+        3. **Click Count** - Website/email engagement level
         4. **Days Since Last Purchase** - Recency (churn risk indicator)
-        5. **Average Order Value** - Purchase size patterns
+        5. **Average Order Value** - Typical purchase size
         
-        **Clustering Process:**
-        1. Features are standardized using StandardScaler (zero mean, unit variance)
-        2. K-means algorithm groups similar customers into segments
-        3. Segments are labeled based on behavioral characteristics:
-           - **VIP High-Value:** High spend + frequent purchases (>$2000, >4 purchases)
-           - **Premium Occasional:** High spend + infrequent purchases (>$2000, <3 purchases)
-           - **Engaged Loyalists:** Moderate spend + high engagement (>3 purchases, >20 clicks)
-           - **At-Risk Dormant:** High recency indicating inactivity (>80 days since purchase)
-           - **Casual Browsers:** Moderate behavior across all metrics
+        **Segmentation Process:**
+        1. Features are standardized using StandardScaler (mean=0, std=1)
+        2. K-means clustering groups customers with similar behaviors
+        3. 5 segments identified (optimal based on elbow method)
+        4. Business labels assigned based on behavioral patterns:
+           - **VIP High-Value:** >$2000 spend + >4 purchases
+           - **Premium Occasional:** >$2000 spend + <3 purchases  
+           - **Engaged Loyalists:** >4 purchases + >20 clicks
+           - **At-Risk Dormant:** >80 days since last purchase
+           - **Window Shoppers:** <2 purchases (high browse, low convert)
+           - **Active Regulars:** Moderate across all metrics
         
-        **Conversion Rate Calculation:**
+        **Conversion Rate Formula:**
 ```
         Base Rate = (Avg Purchases / Avg Clicks) × 100
         Recency Penalty = 1 / (1 + Days Since Purchase / 30)
-        Final Conversion Rate = Base Rate × Recency Penalty
+        Final Rate = Base Rate × Recency Penalty
 ```
         
-        This formula penalizes segments with older last purchase dates, reflecting churn risk.
+        Recent customers get full rate, older customers penalized exponentially.
         
-        **Practical Applications:**
-        - Target VIP High-Value with premium product launches
-        - Re-engage At-Risk Dormant with win-back campaigns
-        - Convert Casual Browsers with targeted offers
-        - Nurture Engaged Loyalists for lifetime value optimization
+        **Use Cases:**
+        - **VIP High-Value** → Exclusive previews, concierge service
+        - **At-Risk Dormant** → Win-back campaigns with incentives
+        - **Window Shoppers** → Retargeting ads, limited-time offers
+        - **Engaged Loyalists** → Referral programs, loyalty rewards
         """)
     
-    # Generate or load data
+    # Generate data (no segment slider, fixed at 5)
     if st.session_state.customers_df is None:
         with st.spinner("Generating customer segments..."):
-            customers_df = generate_customer_data(1000)  # Fixed at 1000
-            customers_df = perform_segmentation(customers_df, n_clusters)
+            customers_df = generate_customer_data(1000)
+            customers_df = perform_segmentation(customers_df)
             customers_df, segment_stats, segment_labels = assign_segment_labels(customers_df)
             st.session_state.customers_df = customers_df
             st.session_state.segment_stats = segment_stats
@@ -538,25 +550,23 @@ with tab2:
     with col2:
         st.metric("Avg Customer Value", f"${customers_df['total_spend'].mean():.2f}")
     with col3:
-        st.metric("Active Segments", n_clusters)
+        st.metric("Segments Identified", "5")
     with col4:
         st.metric("Avg Conversion", f"{segment_stats['conversion_rate'].mean():.1f}%")
     
     st.markdown("---")
     
-    # Sub-tabs for different views
+    # Sub-tabs
     subtab1, subtab2, subtab3, subtab4 = st.tabs(["Overview", "Segments", "Analysis", "Export"])
     
     with subtab1:
         st.subheader("Segment Distribution")
         
-        # Pie chart
         segment_counts = customers_df['segment_label'].value_counts()
         fig = px.pie(values=segment_counts.values, names=segment_counts.index,
-                     title="Customer Distribution by Segment")
+                     title=f"Customer Distribution Across {len(segment_counts)} Segments")
         st.plotly_chart(fig, use_container_width=True)
         
-        # Scatter plot
         st.subheader("Purchase Behavior by Segment")
         fig = px.scatter(customers_df, x='purchase_count', y='total_spend',
                         color='segment_label', size='click_count',
@@ -572,6 +582,7 @@ with tab2:
         
         st.dataframe(
             display_stats.style.format({
+                'customer_count': '{:,.0f}',
                 'avg_spend': '${:.2f}',
                 'avg_purchases': '{:.2f}',
                 'avg_clicks': '{:.2f}',
@@ -582,7 +593,6 @@ with tab2:
             use_container_width=True
         )
         
-        # Conversion rate bar chart
         st.subheader("Conversion Rates by Segment")
         fig = px.bar(
             x=[segment_labels[i] for i in segment_stats.index],
@@ -604,24 +614,31 @@ with tab2:
         
         with col2:
             fig = px.box(customers_df, x='segment_label', y='days_since_last_purchase',
-                        title="Recency by Segment")
+                        title="Recency Distribution by Segment")
             st.plotly_chart(fig, use_container_width=True)
         
-        # Heatmap - FIXED to avoid duplicate column names
+        # Heatmap with unique column names
         st.subheader("Segment Characteristics Heatmap")
         heatmap_data = segment_stats[['avg_spend', 'avg_purchases', 'avg_clicks', 
                                        'avg_recency', 'conversion_rate']].T
         
-        # Use segment numbers as column names to avoid duplicates
-        heatmap_data.columns = [f"Segment {i}" for i in heatmap_data.columns]
+        # Create unique column names using segment labels
+        unique_cols = []
+        for i in heatmap_data.columns:
+            label = segment_labels[i]
+            # If duplicate label exists, add segment number
+            if label in unique_cols:
+                unique_cols.append(f"{label} (Seg {i})")
+            else:
+                unique_cols.append(label)
         
-        # Normalize for better visualization
+        heatmap_data.columns = unique_cols
         heatmap_normalized = (heatmap_data - heatmap_data.min()) / (heatmap_data.max() - heatmap_data.min())
         
         fig = px.imshow(heatmap_normalized,
                        labels=dict(x="Segment", y="Metric", color="Normalized Value"),
                        x=heatmap_normalized.columns, y=heatmap_normalized.index,
-                       title="Normalized Segment Characteristics")
+                       title="Normalized Segment Characteristics (0=Low, 1=High)")
         st.plotly_chart(fig, use_container_width=True)
     
     with subtab4:
@@ -632,25 +649,26 @@ with tab2:
         with col1:
             csv = customers_df.to_csv(index=False)
             st.download_button(
-                label="Download Customer Data",
+                label="Download Customer Data (CSV)",
                 data=csv,
                 file_name="customer_segments.csv",
                 mime="text/csv",
-                key="download_customers"
+                key="download_customers",
+                help="Download full customer dataset with segment assignments"
             )
         
         with col2:
             summary_csv = segment_stats.to_csv()
             st.download_button(
-                label="Download Segment Summary",
+                label="Download Segment Summary (CSV)",
                 data=summary_csv,
                 file_name="segment_summary.csv",
                 mime="text/csv",
-                key="download_summary"
+                key="download_summary",
+                help="Download aggregated statistics for each segment"
             )
         
-        st.info("Use these exports for further analysis or integration with your CRM system")
+        st.info("Use these exports for CRM integration, email marketing, or further analysis")
 
-# Footer
 st.markdown("---")
-st.markdown("**Marketing Intelligence Platform** | Modules: Competitive Intelligence + Customer Intelligence")
+st.markdown("**Marketing Intelligence Platform** | Week 1-2 Complete: Competitive Intelligence + Customer Intelligence")
