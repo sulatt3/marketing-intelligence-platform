@@ -184,7 +184,7 @@ Section completeness, citation rate (hallucination detection), specificity score
 
 **Planned:**
 - [ ] User feedback loop
-- [ ] Module 3: Marketing Insights
+- [ ] Module 4: Marketing Insights
 - [ ] Multi-company comparison
 - [ ] Historical tracking
 - [ ] Custom prompt templates
@@ -194,7 +194,7 @@ Section completeness, citation rate (hallucination detection), specificity score
 
 ## About
 
-**Portfolio Project by Su Latt** | [GitHub](https://github.com/sulatt3) | [LinkedIn](https://linkedin.com/in/su-latt)
+**Portfolio Project by Su Latt** | [GitHub](https://github.com/sulatt3) | [LinkedIn](https://www.linkedin.com/in/su-l-67630a67/)
 
 Demonstrates AI engineering capabilities:
 - Multi-API orchestration
@@ -203,7 +203,7 @@ Demonstrates AI engineering capabilities:
 - Data quality frameworks
 - Responsible AI deployment
 
-**Background:** Senior Analytics Manager → AI Engineering transition. 6+ years experience managing 15-person team, $2B+ impact across Fortune 500 clients. Customer segmentation based on production Segmint system (20M+ events, 28.95% conversion).
+**Background:** Senior Analytics and AI Manager. 6+ years experience managing 15-person team, $2B+ impact across Fortune 500 clients. Customer segmentation based on production Segmint system (20M+ events, 28.95% conversion).
 
 ---
 
@@ -212,7 +212,7 @@ Demonstrates AI engineering capabilities:
 **Su Latt**
 - GitHub: [@sulatt3](https://github.com/sulatt3)
 - Email: su.h.latt3@gmail.com
-- LinkedIn: [su-latt](https://linkedin.com/in/su-latt)
+- LinkedIn: [su-latt](https://www.linkedin.com/in/su-l-67630a67/)
 
 ---
 
