@@ -1,30 +1,42 @@
 # Marketing Intelligence Platform
 
-AI-powered competitive analysis and customer segmentation for data-driven marketing strategy.
+AI-powered competitive analysis and customer segmentation with comprehensive evaluation framework.
 
-**Live Demo:** [marketing-intelligence-platform.streamlit.app](https://marketing-intelligence-platform.streamlit.app)
+**Live Demo:** [marketing-intelligence-platform-su.streamlit.app](https://marketing-intelligence-platform-su.streamlit.app)
 
 ---
 
 ## Overview
 
-The Marketing Intelligence Platform integrates real-time competitive intelligence with behavioral customer segmentation to provide actionable insights for marketing teams. Built with production-grade AI orchestration, the platform demonstrates enterprise-scale data processing patterns and strategic analytics capabilities.
+The Marketing Intelligence Platform integrates real-time competitive intelligence with behavioral customer segmentation to provide actionable insights for marketing teams. Built with production-grade AI orchestration and comprehensive evaluation frameworks, the platform demonstrates enterprise-scale data processing patterns and responsible AI deployment.
 
-### Key Features
+**Key Innovation:** Comprehensive evaluation system including data quality scoring, ML model validation, and LLM output assessment with hallucination detection.
 
-**Competitive Intelligence Module**
+### Core Features
+
+**Module 1: Competitive Intelligence**
 - Multi-source data integration (News API, Wikipedia Pageviews)
-- AI-powered synthesis using Gemini 2.5 Pro
-- Smart deduplication and relevance scoring
+- AI-powered synthesis using Claude Sonnet 4
+- Smart deduplication (85% similarity threshold)
+- Multi-dimensional relevance scoring
 - Sentiment analysis and trend detection
 - Interactive visualizations with timeline and sentiment breakdowns
+- LLM output evaluation with citation tracking
 
-**Customer Intelligence Module**
-- Behavior-based K-means clustering
-- Five distinct customer segments with conversion rate analysis
+**Module 2: Customer Intelligence**
+- Behavior-based K-means clustering (5 segments)
 - Based on production Segmint system (20M+ events, 28.95% conversion rates)
 - Multi-dimensional behavioral analysis
-- CSV export for further analysis
+- Conversion rate modeling with recency penalties
+- Feature correlation analysis
+- CSV export for CRM integration
+
+**Module 3: Data Quality & Evaluation Metrics**
+- Data quality scoring (0-100 composite score)
+- LLM output evaluation (hallucination detection via citation rate)
+- ML clustering metrics (silhouette score, Davies-Bouldin, elbow method)
+- EDA and preprocessing documentation
+- Comprehensive evaluation methodology
 
 ---
 
@@ -32,36 +44,30 @@ The Marketing Intelligence Platform integrates real-time competitive intelligenc
 
 ### Data Pipeline
 ```
-Data Sources → Collection → Processing → AI Synthesis → Visualization
-     ↓             ↓            ↓             ↓              ↓
-  News API    ThreadPool   Deduplication   Gemini      Plotly/Pandas
-  Wikipedia   Concurrent   Relevance       2.5 Pro     Interactive
-  Pageviews   Fetching     Scoring                     Charts
+Multi-Source Collection → Quality Scoring → AI Synthesis → Evaluation
+         ↓                      ↓               ↓              ↓
+    News API +          Deduplication      Claude API    Citation Rate
+    Wikipedia           Relevance Score    Synthesis     Specificity Check
+    Parallel Fetch      Validation         Prompting     Quality Metrics
 ```
 
 ### Tech Stack
 
-**Core Framework**
-- Streamlit (UI/deployment)
-- Python 3.9+
-
 **AI & ML**
-- Google Gemini 2.5 Pro (synthesis)
-- scikit-learn (K-means clustering)
-- Custom NLP (sentiment analysis)
+- Anthropic Claude Sonnet 4 (competitive intelligence synthesis)
+- scikit-learn (K-means clustering, StandardScaler)
+- Custom NLP (sentiment analysis, relevance scoring)
 
 **Data Processing**
-- pandas (data manipulation)
-- numpy (numerical operations)
+- pandas, numpy (data manipulation)
 - concurrent.futures (parallel API calls)
 
-**Visualization**
-- Plotly (interactive charts)
-- Plotly Express (statistical plots)
+**Framework & Visualization**
+- Streamlit (UI/deployment)
+- Plotly Express & Graph Objects (interactive charts)
 
 **APIs**
-- News API (news aggregation)
-- Wikipedia Pageviews API (market interest)
+- Anthropic Claude API, News API, Wikipedia Pageviews API
 
 ---
 
@@ -69,217 +75,135 @@ Data Sources → Collection → Processing → AI Synthesis → Visualization
 
 ### Prerequisites
 - Python 3.9+
-- API Keys:
-  - [News API](https://newsapi.org/) (free tier: 100 requests/day)
-  - [Google AI Studio](https://aistudio.google.com/) (Gemini API - free tier available)
+- [Anthropic Claude API key](https://console.anthropic.com/) (free tier: $5 credit)
+- [News API key](https://newsapi.org/) (free tier: 100 requests/day)
 
 ### Setup
 
-1. **Clone the repository**
+1. **Clone and install**
 ```bash
 git clone https://github.com/sulatt3/marketing-intelligence-platform.git
 cd marketing-intelligence-platform
-```
-
-2. **Install dependencies**
-```bash
 pip install -r requirements.txt
 ```
 
-3. **Configure API keys**
-
-Create a `.streamlit/secrets.toml` file:
+2. **Configure API keys** (`.streamlit/secrets.toml`):
 ```toml
 NEWSAPI_KEY = "your_newsapi_key_here"
-GEMINI_API_KEY = "your_gemini_key_here"
+ANTHROPIC_API_KEY = "your_anthropic_key_here"
 ```
 
-Or set environment variables:
-```bash
-export NEWSAPI_KEY="your_newsapi_key_here"
-export GEMINI_API_KEY="your_gemini_key_here"
-```
-
-4. **Run locally**
+3. **Run locally**
 ```bash
 streamlit run streamlit_app.py
 ```
-
-The app will open at `http://localhost:8501`
 
 ---
 
 ## Usage
 
 ### Competitive Intelligence
-
-1. **Enter company name** (e.g., "Perplexity", "Anthropic", "OpenAI")
-2. **Select data sources** (News API, Wikipedia Pageviews, or both)
-3. **Adjust analysis depth** (20-100 articles)
-4. **Generate report** - AI synthesizes insights in 15-30 seconds
-
-**Output includes:**
-- Executive summary
-- Recent strategic moves
-- Product launches
-- Market interest trends
-- Competitive threats and opportunities
-- Strategic recommendations
-- Downloadable markdown report
+1. Enter company name → Generate report
+2. View AI-synthesized strategic analysis
+3. Explore visualizations (sentiment, timeline)
+4. Download markdown report
 
 ### Customer Intelligence
+1. Auto-generated segments (1,000 synthetic customers)
+2. Explore 5 behavioral segments with conversion rates
+3. View distributions, correlations, performance metrics
+4. Export CSV for CRM integration
 
-1. **Navigate to Customer Intelligence tab**
-2. **Segments auto-generate** on first load (1,000 synthetic customers)
-3. **Explore four sub-tabs:**
-   - **Overview:** Distribution and purchase behavior
-   - **Segments:** Performance metrics and conversion rates
-   - **Analysis:** Box plots and characteristic heatmaps
-   - **Export:** Download customer data and segment summaries
-
-**Segment Types:**
-- **At-Risk Dormant** (>80 days inactive)
-- **Premium Whales** (>$1,000 AOV)
-- **Frequent Buyers** (>4.5 purchases)
-- **Engaged Browsers** (>23 clicks + >2.5 purchases)
-- **Window Shoppers** (<2 purchases)
+### Data Quality & Metrics
+1. Review data quality scores and cleaning metrics
+2. Evaluate LLM output quality (completeness, citations, specificity)
+3. Validate ML clustering performance (silhouette, elbow plot)
+4. Inspect feature correlations and preprocessing steps
 
 ---
 
 ## Key Technical Implementations
 
 ### 1. Smart Deduplication
-Uses SequenceMatcher for fuzzy string matching to eliminate near-duplicate articles (85% similarity threshold).
+Fuzzy string matching (85% similarity) eliminates near-duplicate articles
 
 ### 2. Multi-Dimensional Relevance Scoring
-```python
-Score Components:
-- Title mentions: 40 points
-- Content relevance: 20 points
-- Mention frequency: up to 20 points
-- Recency: 15 points (≤7 days) → 0 points (>30 days)
-Max Score: 100
+- Title mentions: 40pts | Content: 20pts | Frequency: 20pts | Recency: 15pts
+
+### 3. LLM Output Evaluation
+- **Section Completeness:** 9 expected sections validation
+- **Citation Rate:** Hallucination detection (% source articles referenced)
+- **Specificity Score:** Concrete facts vs. generic statements
+- **Overall Quality:** 0-100 composite metric
+
+### 4. ML Clustering Metrics
+- Silhouette score (cluster separation)
+- Davies-Bouldin score (cluster cohesion)
+- Elbow method (optimal k validation)
+
+### 5. Conversion Rate Modeling
 ```
-
-### 3. Behavior-Based Segmentation
-Priority-based labeling system ensures segments reflect most critical behavioral patterns:
-1. Churn risk (recency >80 days)
-2. High value (AOV >$1,000)
-3. High frequency (purchases >4.5)
-4. High engagement (clicks >23, purchases >2.5)
-5. Low conversion (purchases <2.0)
-
-### 4. Conversion Rate Estimation
-```python
-Base Rate = (Avg Purchases / Avg Clicks) × 100
-Recency Penalty = 1 / (1 + Days Since Purchase / 30)
-Final Rate = Base Rate × Recency Penalty
+Base = (Purchases / Clicks) × 100
+Penalty = 1 / (1 + Days/30)
+Final = Base × Penalty
 ```
 
 ---
 
-## Project Structure
+## Evaluation Framework
 
-```
-marketing-intelligence-platform/
-├── streamlit_app.py          # Main application
-├── requirements.txt           # Python dependencies
-├── .streamlit/
-│   └── secrets.toml          # API keys (not in git)
-├── README.md                 # Documentation
-└── .gitignore               # Git ignore rules
-```
+### Data Quality
+Completeness, deduplication rate, source diversity, temporal coverage, relevance distribution
 
----
+### ML Model
+Silhouette score, Davies-Bouldin score, elbow method, segment balance, feature correlation
 
-## Dependencies
-
-```
-streamlit>=1.28.0
-google-generativeai>=0.3.0
-newsapi-python>=0.2.7
-plotly>=5.17.0
-pandas>=2.0.0
-numpy>=1.24.0
-scikit-learn>=1.3.0
-requests>=2.31.0
-```
+### LLM Output
+Section completeness, citation rate (hallucination detection), specificity score, length appropriateness
 
 ---
 
 ## Deployment
 
-### Streamlit Cloud (Recommended)
+**Streamlit Cloud** (recommended): Connect GitHub → Add secrets → Deploy
 
-1. Push code to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect repository
-4. Add secrets in Streamlit dashboard:
-   - `NEWSAPI_KEY`
-   - `GEMINI_API_KEY`
-5. Deploy
-
-### Alternative Platforms
-- **Heroku:** Use `Procfile` with `web: streamlit run streamlit_app.py`
-- **AWS EC2:** Run with systemd service
-- **Docker:** Create `Dockerfile` with Streamlit base image
-
----
-
-## Production Considerations
-
-### Rate Limiting
-- **News API:** 100 requests/day (free tier) - implement caching
-- **Gemini API:** Subject to quota limits - handle ResourceExhausted errors
-- **Wikipedia:** Generally unlimited, respectful delays recommended
-
-### Scalability
-- Implement Redis caching for multi-user deployments
-- Use background workers for long-running analyses
-- Consider batch processing for enterprise use cases
-
-### Security
-- Never commit API keys to version control
-- Use Streamlit secrets management or environment variables
-- Implement authentication for production deployments
+**Production considerations:**
+- Rate limiting (2-min cooldown)
+- Parallel API orchestration
+- Session state management
+- Graceful error handling
 
 ---
 
 ## Roadmap
 
-**Completed**
-- ✅ Competitive Intelligence module with AI synthesis
-- ✅ Customer Intelligence with behavioral segmentation
-- ✅ Interactive visualizations
-- ✅ CSV export functionality
+**Completed:**
+- ✅ Competitive Intelligence with AI synthesis
+- ✅ Customer segmentation with evaluation
+- ✅ Comprehensive metrics (data + ML + LLM)
 
-**Planned Enhancements**
-- [ ] Module 3: Marketing Insights & Recommendations
-- [ ] Historical trend tracking
-- [ ] Multi-company comparison mode
-- [ ] Real-time data refresh
-- [ ] API endpoint for programmatic access
+**Planned:**
+- [ ] User feedback loop
+- [ ] Module 3: Marketing Insights
+- [ ] Multi-company comparison
+- [ ] Historical tracking
+- [ ] Custom prompt templates
+- [ ] Enhanced exports (PDF)
 
 ---
 
 ## About
 
-This project demonstrates full-stack AI engineering capabilities including:
-- Multi-API orchestration and data integration
-- Prompt engineering for business intelligence synthesis
-- Production ML patterns (K-means clustering, feature engineering)
-- Interactive data visualization
-- Scalable architecture design
+**Portfolio Project by Su Latt** | [GitHub](https://github.com/sulatt3) | [LinkedIn](https://linkedin.com/in/su-latt)
 
-Built by [Su Latt](https://github.com/sulatt3) as part of an AI engineering portfolio.
+Demonstrates AI engineering capabilities:
+- Multi-API orchestration
+- LLM prompt engineering & evaluation
+- Production ML implementation
+- Data quality frameworks
+- Responsible AI deployment
 
-**Background:** Transitioned from Senior Analytics Manager (managing 15-person team, $2B+ in incremental sales across Fortune 500 clients) to AI Engineering. This project showcases technical depth in AI systems, data processing, and production deployment.
-
----
-
-## License
-
-MIT License - See LICENSE file for details
+**Background:** Senior Analytics Manager → AI Engineering transition. 6+ years experience managing 15-person team, $2B+ impact across Fortune 500 clients. Customer segmentation based on production Segmint system (20M+ events, 28.95% conversion).
 
 ---
 
@@ -288,13 +212,10 @@ MIT License - See LICENSE file for details
 **Su Latt**
 - GitHub: [@sulatt3](https://github.com/sulatt3)
 - Email: su.h.latt3@gmail.com
-- LinkedIn: [Su Latt](https://linkedin.com/in/su-latt)
+- LinkedIn: [su-latt](https://linkedin.com/in/su-latt)
 
 ---
 
-## Acknowledgments
+## License
 
-- **Segmint System:** Customer segmentation logic based on production system processing 20M+ customer events
-- **News API:** Real-time news aggregation
-- **Wikipedia Pageviews API:** Market interest data
-- **Google Gemini:** AI synthesis and analysis
+MIT License
