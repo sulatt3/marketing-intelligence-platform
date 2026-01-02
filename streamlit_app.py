@@ -37,7 +37,7 @@ if demo_password != os.getenv("DEMO_PASSWORD", ""):
     st.markdown("---")
     st.markdown("""
     **What This Demo Includes:**
-    - AI-powered competitive intelligence with Llama 3.1 70B (via Groq)
+    - AI-powered competitive intelligence with Llama 3.3 70B (via Groq)
     - Behavioral customer segmentation (K-means clustering)
     - Comprehensive evaluation framework (data quality + ML metrics + LLM assessment)
     - Production-grade features: rate limiting, error handling, hybrid LLM scoring
@@ -231,7 +231,7 @@ DATA:
 
 def llm_score_articles(articles: List[Dict[str, Any]], company: str) -> List[Dict[str, Any]]:
     """
-    Use Llama 3.1 70B (via Groq) to batch score article relevance
+    Use Llama 3.3 70B (via Groq) to batch score article relevance
     Returns articles with LLM-assigned relevance scores
     """
     import json
@@ -267,7 +267,7 @@ IMPORTANT: Return ONLY the JSON array, nothing else."""
 
     try:
         completion = groq_client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
             temperature=0.1
@@ -351,7 +351,7 @@ def generate_competitive_brief(company: str, use_news: bool, use_wikipedia: bool
         prompt = build_synthesis_prompt(final_processed, company)
         
         completion = groq_client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=4000,
             temperature=0.3
@@ -786,7 +786,7 @@ with st.expander("ℹ️ About This Project"):
     **Portfolio Project by Su Latt** | [GitHub](https://github.com/sulatt3/marketing-intelligence-platform)
     
     This platform demonstrates AI engineering capabilities through:
-    - **Multi-API Orchestration**: News API + Wikipedia + Groq (Llama 3.1 70B)
+    - **Multi-API Orchestration**: News API + Wikipedia + Groq (Llama 3.3 70B)
     - **Hybrid LLM Scoring**: Rule-based pre-filtering + semantic relevance validation
     - **Machine Learning**: K-means behavioral segmentation (example model based on previous production system: 20M+ events, 28.95% conversion)
     - **Data Engineering**: ETL pipeline with deduplication, quality scoring, validation
@@ -794,7 +794,7 @@ with st.expander("ℹ️ About This Project"):
     - **Cost Optimization**: Free unlimited LLM inference via Groq
     - **Production Deployment**: Rate limiting, error handling, password protection, CI/CD
     
-    **Tech Stack**: Python, Groq API (Llama 3.1 70B), scikit-learn, Plotly, Streamlit
+    **Tech Stack**: Python, Groq API (Llama 3.3 70B), scikit-learn, Plotly, Streamlit
     
     **Roadmap (Planned Enhancements):**
     - User feedback loop and rating system
@@ -1202,7 +1202,7 @@ with tab3:
             st.markdown("---")
             
             # LLM Evaluation Section
-            st.markdown("### LLM Output Evaluation (Llama 3.1 70B via Groq)")
+            st.markdown("### LLM Output Evaluation (Llama 3.3 70B via Groq)")
             
             col1, col2 = st.columns(2)
             

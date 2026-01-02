@@ -17,8 +17,8 @@ The Marketing Intelligence Platform integrates real-time competitive intelligenc
 
 **Module 1: Competitive Intelligence**
 - Multi-source data integration (News API, Wikipedia Pageviews)
-- **Hybrid LLM scoring:** Rule-based pre-filter + Llama 3.1 semantic validation
-- AI-powered synthesis using Llama 3.1 70B (via Groq)
+- **Hybrid LLM scoring:** Rule-based pre-filter + Llama 3.3 semantic validation
+- AI-powered synthesis using Llama 3.3 70B (via Groq)
 - Smart deduplication (85% similarity threshold)
 - Multi-dimensional relevance scoring
 - Sentiment analysis and trend detection
@@ -52,19 +52,19 @@ News API (150 articles)
     ↓
 Rule-Based Pre-Filter (top 100 candidates)
     ↓
-LLM Batch Scoring (Llama 3.1 scores each 0-100 via Groq)
+LLM Batch Scoring (Llama 3.3 scores each 0-100 via Groq)
     ↓
 Quality Threshold (keep articles ≥50)
     ↓
 User Selection (top N by LLM score)
     ↓
-Final Report Generation (Llama 3.1 via Groq)
+Final Report Generation (Llama 3.3 via Groq)
 ```
 
 ### Tech Stack
 
 **AI & ML**
-- Groq API with Llama 3.1 70B (competitive intelligence synthesis + hybrid scoring)
+- Groq API with Llama 3.3 70B (competitive intelligence synthesis + hybrid scoring)
 - scikit-learn (K-means clustering, StandardScaler)
 - Custom NLP (sentiment analysis, rule-based pre-filtering)
 
@@ -77,7 +77,7 @@ Final Report Generation (Llama 3.1 via Groq)
 - Plotly Express & Graph Objects (interactive charts)
 
 **APIs**
-- Groq API (Llama 3.1 70B), News API, Wikipedia Pageviews API
+- Groq API (Llama 3.3 70B), News API, Wikipedia Pageviews API
 
 ---
 
@@ -128,10 +128,10 @@ The live demo is password-protected to preserve API credits for reviewers.
 **What happens behind the scenes:**
 - Collects 150+ articles from News API
 - Rule-based pre-filter selects top 100 candidates
-- Llama 3.1 70B batch-scores each article 0-100 for semantic relevance
+- Llama 3.3 70B batch-scores each article 0-100 for semantic relevance
 - Filters to articles scoring ≥50 (LLM-approved)
 - Selects top N articles based on your slider
-- Generates comprehensive strategic report using Llama 3.1
+- Generates comprehensive strategic report using Llama 3.3
 
 **Output includes:**
 - Executive summary
@@ -174,7 +174,7 @@ Auto-generated segments (1,000 synthetic customers) with:
 ### 1. Hybrid LLM Scoring
 **Two-stage relevance system:**
 - **Stage 1:** Rule-based pre-filter (keyword matching, recency, source authority)
-- **Stage 2:** LLM semantic validation (Llama 3.1 scores 0-100 via Groq)
+- **Stage 2:** LLM semantic validation (Llama 3.3 scores 0-100 via Groq)
 - **Threshold:** Articles must score ≥50 to be included
 - **Fallback:** Uses rule-based only if <20 articles collected
 
@@ -372,10 +372,10 @@ Built by [Su Latt](https://github.com/sulatt3) as part of an AI engineering port
 ## Technical Highlights for Interviews
 
 **Hybrid LLM Scoring:**
-> "I implemented a two-stage hybrid scoring system. Rule-based pre-filtering handles the obvious cases for speed and cost-efficiency, then Llama 3.1 70B (via Groq) provides semantic validation by batch-scoring the top 100 candidates. Only articles scoring ≥50 are included in the final analysis. This combines deterministic efficiency with LLM semantic understanding at zero cost using Groq's free inference API."
+> "I implemented a two-stage hybrid scoring system. Rule-based pre-filtering handles the obvious cases for speed and cost-efficiency, then Llama 3.3 70B (via Groq) provides semantic validation by batch-scoring the top 100 candidates. Only articles scoring ≥50 are included in the final analysis. This combines deterministic efficiency with LLM semantic understanding at zero cost using Groq's free inference API."
 
 **Cost Optimization:**
-> "I chose Groq's Llama 3.1 70B for production deployment because it provides excellent quality (comparable to Claude/GPT-4) with unlimited free usage. For a portfolio demo that might be accessed by multiple recruiters, this eliminates budget constraints while maintaining professional-grade outputs. In production, I'd evaluate the cost-quality trade-off and potentially upgrade to Claude or GPT-4 if needed."
+> "I chose Groq's Llama 3.3 70B for production deployment because it provides excellent quality (comparable to Claude/GPT-4) with unlimited free usage. For a portfolio demo that might be accessed by multiple recruiters, this eliminates budget constraints while maintaining professional-grade outputs. In production, I'd evaluate the cost-quality trade-off and potentially upgrade to Claude or GPT-4 if needed."
 
 **Hallucination Detection:**
 > "I track citation rate in LLM-generated reports - what percentage of provided source articles are actually referenced. Low citation rates (<40%) indicate potential hallucinations. I also measure specificity by counting dates, numbers, and concrete facts versus generic statements."
@@ -402,7 +402,7 @@ MIT License
 
 ## Acknowledgments
 
-- **Groq:** Free unlimited LLM inference with Llama 3.1 70B
+- **Groq:** Free unlimited LLM inference with Llama 3.3 70B
 - **Segmint System:** Customer segmentation logic from production system (20M+ events)
 - **News API:** Real-time news aggregation
 - **Wikipedia Pageviews API:** Market interest data
