@@ -828,128 +828,126 @@ with tab1:
         use_news = True
         use_wikipedia = True
     
-    col1, col2 = st.columns([2, 1])
+    # Full width layout for competitive intelligence
+    st.header("Competitive Intelligence Report")
     
-    with col1:
-        st.header("Competitive Intelligence Report")
+    if generate_btn:
+        import time
         
-        if generate_btn:
-            import time
-            
-            # Check if request already in progress
-            if st.session_state.request_in_progress:
-                st.warning("⏳ Request already in progress. Please wait...")
-                st.stop()
-            
-            # Check rate limiting (2 minutes between requests)
-            current_time = time.time()
-            time_since_last = current_time - st.session_state.last_request_time
-            
-            if time_since_last < 120:  # 2 minutes cooldown
-                remaining = int(120 - time_since_last)
-                minutes = remaining // 60
-                seconds = remaining % 60
-                st.error(f"⏳ Rate limit: Please wait {minutes}m {seconds}s before next request")
-                st.info("This prevents hitting API rate limits (15 requests/minute)")
-                st.stop()
-            
-            if company_name:
-                if not (use_news or use_wikipedia):
-                    st.error("Please enable at least one data source")
-                else:
-                    # Mark request as in progress
-                    st.session_state.request_in_progress = True
-                    st.session_state.last_request_time = current_time
-                    
-                    try:
-                        with st.spinner(f"Analyzing {company_name}..."):
-                            prog = st.progress(0)
-                            status = st.empty()
-                            
-                            status.text("Collecting data...")
-                            prog.progress(20)
-                            
-                            status.text("Rule-based filtering...")
-                            prog.progress(40)
-                            
-                            status.text("LLM semantic scoring...")
-                            prog.progress(60)
-                            
-                            status.text("Generating insights...")
-                            prog.progress(80)
-                            
-                            report, data, scoring_meta = generate_competitive_brief(company_name, use_news, use_wikipedia, num_articles)
-                            
-                            prog.progress(100)
-                            st.session_state.comp_report = report
-                            st.session_state.comp_company = company_name
-                            st.session_state.comp_data = data
-                            st.session_state.scoring_metadata = scoring_meta
-                            
-                            # Increment usage counter
-                            st.session_state.total_reports_generated += 1
-                            
-                            prog.empty()
-                            status.empty()
+        # Check if request already in progress
+        if st.session_state.request_in_progress:
+            st.warning("⏳ Request already in progress. Please wait...")
+            st.stop()
+        
+        # Check rate limiting (2 minutes between requests)
+        current_time = time.time()
+        time_since_last = current_time - st.session_state.last_request_time
+        
+        if time_since_last < 120:  # 2 minutes cooldown
+            remaining = int(120 - time_since_last)
+            minutes = remaining // 60
+            seconds = remaining % 60
+            st.error(f"⏳ Rate limit: Please wait {minutes}m {seconds}s before next request")
+            st.info("This prevents hitting API rate limits (15 requests/minute)")
+            st.stop()
+        
+        if company_name:
+            if not (use_news or use_wikipedia):
+                st.error("Please enable at least one data source")
+            else:
+                # Mark request as in progress
+                st.session_state.request_in_progress = True
+                st.session_state.last_request_time = current_time
+                
+                try:
+                    with st.spinner(f"Analyzing {company_name}..."):
+                        prog = st.progress(0)
+                        status = st.empty()
                         
-                        st.success("Analysis complete")
-                    finally:
-                        # Always clear the in-progress flag
-                        st.session_state.request_in_progress = False
-            else:
-                st.error("Please enter a company name")
-        
-        if st.session_state.comp_report and st.session_state.comp_data:
-            st.markdown("---")
-            
-            data = st.session_state.comp_data
-            news_ct = len([d for d in data if d.get("source") == "News"])
-            scores = [d.get("relevance_score", 0) for d in data if "relevance_score" in d]
-            avg_rel = int(sum(scores) / len(scores)) if scores else 0
-            wiki = [d for d in data if d.get("source") == "Wikipedia"]
-            pageviews = wiki[0].get("avg_daily_pageviews") if wiki and wiki[0].get("avg_daily_pageviews") else None
-            
-            # Only show Wikipedia column if data is available
-            if pageviews:
-                col_a, col_b, col_c = st.columns(3)
-                with col_a:
-                    st.metric("Articles Analyzed", news_ct)
-                with col_b:
-                    delta_text = "High Quality" if avg_rel >= 70 else ("Good Quality" if avg_rel >= 50 else "Low Quality")
-                    st.metric("Avg Relevance Score", f"{avg_rel}/100", delta=delta_text)
-                with col_c:
-                    st.metric("Avg Daily Wikipedia Views", f"{pageviews:,}")
-            else:
-                # Two-column layout when Wikipedia data unavailable
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.metric("Articles Analyzed", news_ct)
-                with col_b:
-                    delta_text = "High Quality" if avg_rel >= 70 else ("Good Quality" if avg_rel >= 50 else "Low Quality")
-                    st.metric("Avg Relevance Score", f"{avg_rel}/100", delta=delta_text)
-            
-            st.markdown("---")
-            st.subheader("Visual Insights")
-            
-            viz_col1, viz_col2 = st.columns(2)
-            with viz_col1:
-                fig = create_competitive_sentiment_viz(st.session_state.comp_data)
-                if fig:
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            with viz_col2:
-                fig = create_competitive_timeline_viz(st.session_state.comp_data)
-                if fig:
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            st.markdown("---")
-            st.download_button("Download Report", st.session_state.comp_report,
-                              f"{st.session_state.comp_company}_{datetime.now().strftime('%Y%m%d')}.md",
-                              mime="text/markdown")
-            st.markdown(st.session_state.comp_report)
-        
+                        status.text("Collecting data...")
+                        prog.progress(20)
+                        
+                        status.text("Rule-based filtering...")
+                        prog.progress(40)
+                        
+                        status.text("LLM semantic scoring...")
+                        prog.progress(60)
+                        
+                        status.text("Generating insights...")
+                        prog.progress(80)
+                        
+                        report, data, scoring_meta = generate_competitive_brief(company_name, use_news, use_wikipedia, num_articles)
+                        
+                        prog.progress(100)
+                        st.session_state.comp_report = report
+                        st.session_state.comp_company = company_name
+                        st.session_state.comp_data = data
+                        st.session_state.scoring_metadata = scoring_meta
+                        
+                        # Increment usage counter
+                        st.session_state.total_reports_generated += 1
+                        
+                        prog.empty()
+                        status.empty()
+                    
+                    st.success("Analysis complete")
+                finally:
+                    # Always clear the in-progress flag
+                    st.session_state.request_in_progress = False
         else:
-            st.info("Enter a company name in the sidebar and click Generate Report to begin analysis")
+            st.error("Please enter a company name")
+    
+    if st.session_state.comp_report and st.session_state.comp_data:
+        st.markdown("---")
+        
+        data = st.session_state.comp_data
+        news_ct = len([d for d in data if d.get("source") == "News"])
+        scores = [d.get("relevance_score", 0) for d in data if "relevance_score" in d]
+        avg_rel = int(sum(scores) / len(scores)) if scores else 0
+        wiki = [d for d in data if d.get("source") == "Wikipedia"]
+        pageviews = wiki[0].get("avg_daily_pageviews") if wiki and wiki[0].get("avg_daily_pageviews") else None
+        
+        # Only show Wikipedia column if data is available
+        if pageviews:
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                st.metric("Articles Analyzed", news_ct)
+            with col_b:
+                delta_text = "High Quality" if avg_rel >= 70 else ("Good Quality" if avg_rel >= 50 else "Low Quality")
+                st.metric("Avg Relevance Score", f"{avg_rel}/100", delta=delta_text)
+            with col_c:
+                st.metric("Avg Daily Wikipedia Views", f"{pageviews:,}")
+        else:
+            # Two-column layout when Wikipedia data unavailable
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.metric("Articles Analyzed", news_ct)
+            with col_b:
+                delta_text = "High Quality" if avg_rel >= 70 else ("Good Quality" if avg_rel >= 50 else "Low Quality")
+                st.metric("Avg Relevance Score", f"{avg_rel}/100", delta=delta_text)
+        
+        st.markdown("---")
+        st.subheader("Visual Insights")
+        
+        viz_col1, viz_col2 = st.columns(2)
+        with viz_col1:
+            fig = create_competitive_sentiment_viz(st.session_state.comp_data)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with viz_col2:
+            fig = create_competitive_timeline_viz(st.session_state.comp_data)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown("---")
+        st.download_button("Download Report", st.session_state.comp_report,
+                          f"{st.session_state.comp_company}_{datetime.now().strftime('%Y%m%d')}.md",
+                          mime="text/markdown")
+        st.markdown(st.session_state.comp_report)
+    
+    else:
+        st.info("Enter a company name in the sidebar and click Generate Report to begin analysis")
 
 # ==================== TAB 2: CUSTOMER INTELLIGENCE ====================
 
