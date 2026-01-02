@@ -14,7 +14,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-import anthropic
+from groq import Groq
 from newsapi import NewsApiClient
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
@@ -37,15 +37,15 @@ if demo_password != os.getenv("DEMO_PASSWORD", ""):
     st.markdown("---")
     st.markdown("""
     **What This Demo Includes:**
-    - AI-powered competitive intelligence with Claude Sonnet 4
+    - AI-powered competitive intelligence with Llama 3.1 70B (via Groq)
     - Behavioral customer segmentation (K-means clustering)
     - Comprehensive evaluation framework (data quality + ML metrics + LLM assessment)
     - Production-grade features: rate limiting, error handling, hybrid LLM scoring
     """)
     st.stop()
 
-# Initialize Claude client
-claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+# Initialize Groq client
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize usage tracking
 if "total_reports_generated" not in st.session_state:
@@ -266,13 +266,14 @@ Example: [85, 72, 45, 91, 38, ...]
 IMPORTANT: Return ONLY the JSON array, nothing else."""
 
     try:
-        message = claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+        completion = groq_client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
-            messages=[{"role": "user", "content": prompt}]
+            temperature=0.1
         )
         
-        response_text = message.content[0].text.strip()
+        response_text = completion.choices[0].message.content.strip()
         
         # Parse JSON response
         # Remove potential markdown code fences
@@ -349,13 +350,14 @@ def generate_competitive_brief(company: str, use_news: bool, use_wikipedia: bool
     try:
         prompt = build_synthesis_prompt(final_processed, company)
         
-        message = claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+        completion = groq_client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
             max_tokens=4000,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+            temperature=0.3
         )
+        
+        report_text = completion.choices[0].message.content
         
         # Track scoring metadata
         scoring_metadata = {
@@ -367,7 +369,7 @@ def generate_competitive_brief(company: str, use_news: bool, use_wikipedia: bool
             "llm_threshold": LLM_THRESHOLD if llm_scored else None
         }
         
-        return message.content[0].text, final_processed, scoring_metadata
+        return report_text, final_processed, scoring_metadata
         
     except Exception as e:
         error_msg = str(e)
@@ -784,14 +786,15 @@ with st.expander("ℹ️ About This Project"):
     **Portfolio Project by Su Latt** | [GitHub](https://github.com/sulatt3/marketing-intelligence-platform)
     
     This platform demonstrates AI engineering capabilities through:
-    - **Multi-API Orchestration**: News API + Wikipedia + Claude Sonnet 4
+    - **Multi-API Orchestration**: News API + Wikipedia + Groq (Llama 3.1 70B)
     - **Hybrid LLM Scoring**: Rule-based pre-filtering + semantic relevance validation
     - **Machine Learning**: K-means behavioral segmentation (example model based on previous production system: 20M+ events, 28.95% conversion)
     - **Data Engineering**: ETL pipeline with deduplication, quality scoring, validation
     - **LLM Engineering**: Prompt engineering + output evaluation + hallucination detection
+    - **Cost Optimization**: Free unlimited LLM inference via Groq
     - **Production Deployment**: Rate limiting, error handling, password protection, CI/CD
     
-    **Tech Stack**: Python, Claude API, scikit-learn, Plotly, Streamlit
+    **Tech Stack**: Python, Groq API (Llama 3.1 70B), scikit-learn, Plotly, Streamlit
     
     **Roadmap (Planned Enhancements):**
     - User feedback loop and rating system
@@ -812,11 +815,6 @@ tab1, tab2, tab3 = st.tabs(["Competitive Intelligence", "Customer Intelligence",
 with tab1:
     with st.sidebar:
         st.header("Competitive Analysis")
-        
-        # Usage tracking display
-        reports_used = st.session_state.total_reports_generated
-        estimated_remaining = max(0, 39 - reports_used)
-        st.info(f"📊 Reports generated: {reports_used} | Estimated remaining: ~{estimated_remaining}")
         
         company_name = st.text_input("Company Name", placeholder="e.g., Perplexity, Anthropic, OpenAI")
         st.markdown("---")
@@ -1204,7 +1202,7 @@ with tab3:
             st.markdown("---")
             
             # LLM Evaluation Section
-            st.markdown("### LLM Output Evaluation (Claude Sonnet 4)")
+            st.markdown("### LLM Output Evaluation (Llama 3.1 70B via Groq)")
             
             col1, col2 = st.columns(2)
             

@@ -64,7 +64,7 @@ Final Report Generation
 ### Tech Stack
 
 **AI & ML**
-- Anthropic Claude Sonnet 4 (competitive intelligence synthesis + hybrid scoring)
+- Groq API with Llama 3.1 70B (competitive intelligence synthesis + hybrid scoring)
 - scikit-learn (K-means clustering, StandardScaler)
 - Custom NLP (sentiment analysis, rule-based pre-filtering)
 
@@ -85,7 +85,7 @@ Final Report Generation
 
 ### Prerequisites
 - Python 3.9+
-- [Anthropic Claude API key](https://console.anthropic.com/) ($5 free credit)
+- [Groq API key](https://console.groq.com/) (FREE, unlimited usage)
 - [News API key](https://newsapi.org/) (free tier: 100 requests/day)
 
 ### Setup
@@ -100,7 +100,7 @@ pip install -r requirements.txt
 2. **Configure API keys and password** (`.streamlit/secrets.toml`):
 ```toml
 NEWSAPI_KEY = "your_newsapi_key_here"
-ANTHROPIC_API_KEY = "your_anthropic_key_here"
+GROQ_API_KEY = "your_groq_key_here"
 DEMO_PASSWORD = "your_demo_password"
 ```
 
@@ -248,14 +248,14 @@ Final Rate = Base Rate × Recency Penalty
 
 ### API Usage Per Report
 - **News API:** 1 call (free tier: 100/day)
-- **Claude API:** 2 calls (batch scoring + report generation)
-- **Cost:** ~$0.12 per report
-- **Time:** 20-30 seconds total
+- **Groq API:** 2 calls (batch scoring + report generation)
+- **Cost:** $0 - Completely free, unlimited usage
+- **Time:** 15-20 seconds total (Groq is very fast)
 
-### Free Credit Budget
-- **$5 credit** = ~39 reports
-- Password protection prevents unauthorized usage
-- Usage tracking helps monitor remaining budget
+### Unlimited Free Usage
+- **No credits to manage** - Groq is completely free
+- Password protection prevents abuse
+- No daily quotas or rate limits for reasonable usage
 
 ---
 
@@ -277,7 +277,7 @@ marketing-intelligence-platform/
 
 ```
 streamlit>=1.28.0
-anthropic>=0.39.0
+groq>=0.4.0
 newsapi-python==0.2.7
 plotly>=5.17.0
 pandas>=2.0.0
@@ -297,7 +297,7 @@ requests>=2.31.0
 3. **Add secrets:**
    ```toml
    NEWSAPI_KEY = "your_key"
-   ANTHROPIC_API_KEY = "your_key"
+   GROQ_API_KEY = "your_key"
    DEMO_PASSWORD = "your_password"
    ```
 4. Deploy
@@ -372,7 +372,10 @@ Built by [Su Latt](https://github.com/sulatt3) as part of an AI engineering port
 ## Technical Highlights for Interviews
 
 **Hybrid LLM Scoring:**
-> "I implemented a two-stage hybrid scoring system. Rule-based pre-filtering handles the obvious cases for speed and cost-efficiency, then Claude provides semantic validation by batch-scoring the top 100 candidates. Only articles scoring ≥50 are included in the final analysis. This combines deterministic efficiency with LLM semantic understanding while keeping costs manageable at ~$0.12 per report."
+> "I implemented a two-stage hybrid scoring system. Rule-based pre-filtering handles the obvious cases for speed and cost-efficiency, then Llama 3.1 70B (via Groq) provides semantic validation by batch-scoring the top 100 candidates. Only articles scoring ≥50 are included in the final analysis. This combines deterministic efficiency with LLM semantic understanding at zero cost using Groq's free inference API."
+
+**Cost Optimization:**
+> "I chose Groq's Llama 3.1 70B for production deployment because it provides excellent quality (comparable to Claude/GPT-4) with unlimited free usage. For a portfolio demo that might be accessed by multiple recruiters, this eliminates budget constraints while maintaining professional-grade outputs. In production, I'd evaluate the cost-quality trade-off and potentially upgrade to Claude or GPT-4 if needed."
 
 **Hallucination Detection:**
 > "I track citation rate in LLM-generated reports - what percentage of provided source articles are actually referenced. Low citation rates (<40%) indicate potential hallucinations. I also measure specificity by counting dates, numbers, and concrete facts versus generic statements."
@@ -399,7 +402,7 @@ MIT License
 
 ## Acknowledgments
 
-- **Anthropic Claude:** AI synthesis and hybrid semantic scoring
+- **Groq:** Free unlimited LLM inference with Llama 3.1 70B
 - **Segmint System:** Customer segmentation logic from production system (20M+ events)
 - **News API:** Real-time news aggregation
 - **Wikipedia Pageviews API:** Market interest data
