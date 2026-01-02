@@ -231,7 +231,7 @@ DATA:
 
 def llm_score_articles(articles: List[Dict[str, Any]], company: str) -> List[Dict[str, Any]]:
     """
-    Use Claude to batch score article relevance
+    Use Llama 3.1 70B (via Groq) to batch score article relevance
     Returns articles with LLM-assigned relevance scores
     """
     import json
@@ -1236,7 +1236,7 @@ with tab3:
             
             st.markdown("### LLM Evaluation Methodology")
             st.markdown("""
-            **How We Evaluate Claude's Output:**
+            **How We Evaluate LLM Output:**
             
             1. **Section Completeness (30% weight)**
                - Checks if all 9 expected sections are present

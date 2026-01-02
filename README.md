@@ -17,8 +17,8 @@ The Marketing Intelligence Platform integrates real-time competitive intelligenc
 
 **Module 1: Competitive Intelligence**
 - Multi-source data integration (News API, Wikipedia Pageviews)
-- **Hybrid LLM scoring:** Rule-based pre-filter + Claude semantic validation
-- AI-powered synthesis using Claude Sonnet 4
+- **Hybrid LLM scoring:** Rule-based pre-filter + Llama 3.1 semantic validation
+- AI-powered synthesis using Llama 3.1 70B (via Groq)
 - Smart deduplication (85% similarity threshold)
 - Multi-dimensional relevance scoring
 - Sentiment analysis and trend detection
@@ -52,13 +52,13 @@ News API (150 articles)
     ↓
 Rule-Based Pre-Filter (top 100 candidates)
     ↓
-LLM Batch Scoring (Claude scores each 0-100)
+LLM Batch Scoring (Llama 3.1 scores each 0-100 via Groq)
     ↓
 Quality Threshold (keep articles ≥50)
     ↓
 User Selection (top N by LLM score)
     ↓
-Final Report Generation
+Final Report Generation (Llama 3.1 via Groq)
 ```
 
 ### Tech Stack
@@ -77,7 +77,7 @@ Final Report Generation
 - Plotly Express & Graph Objects (interactive charts)
 
 **APIs**
-- Anthropic Claude API, News API, Wikipedia Pageviews API
+- Groq API (Llama 3.1 70B), News API, Wikipedia Pageviews API
 
 ---
 
@@ -128,10 +128,10 @@ The live demo is password-protected to preserve API credits for reviewers.
 **What happens behind the scenes:**
 - Collects 150+ articles from News API
 - Rule-based pre-filter selects top 100 candidates
-- Claude batch-scores each article 0-100 for semantic relevance
+- Llama 3.1 70B batch-scores each article 0-100 for semantic relevance
 - Filters to articles scoring ≥50 (LLM-approved)
 - Selects top N articles based on your slider
-- Generates comprehensive strategic report
+- Generates comprehensive strategic report using Llama 3.1
 
 **Output includes:**
 - Executive summary
@@ -174,7 +174,7 @@ Auto-generated segments (1,000 synthetic customers) with:
 ### 1. Hybrid LLM Scoring
 **Two-stage relevance system:**
 - **Stage 1:** Rule-based pre-filter (keyword matching, recency, source authority)
-- **Stage 2:** LLM semantic validation (Claude scores 0-100)
+- **Stage 2:** LLM semantic validation (Llama 3.1 scores 0-100 via Groq)
 - **Threshold:** Articles must score ≥50 to be included
 - **Fallback:** Uses rule-based only if <20 articles collected
 
@@ -313,7 +313,7 @@ requests>=2.31.0
 
 ### Rate Limiting
 - **News API:** 100 requests/day (free tier)
-- **Claude API:** 50 requests/minute, ~$0.12 per report
+- **Groq API:** Unlimited free usage
 - **App safeguards:** 2-min cooldown, request tracking
 
 ### Scalability
