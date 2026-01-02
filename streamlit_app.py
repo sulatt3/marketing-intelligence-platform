@@ -26,8 +26,30 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ==================== PASSWORD PROTECTION ====================
+
+demo_password = st.text_input("🔒 Demo Access Password", type="password", key="demo_password", 
+                              help="Portfolio demo - Contact su.h.latt3@gmail.com for password")
+
+if demo_password != os.getenv("DEMO_PASSWORD", ""):
+    st.warning("🔒 This is a portfolio demonstration. Password required for access.")
+    st.info("📧 Recruiters/Interviewers: Request password at su.h.latt3@gmail.com")
+    st.markdown("---")
+    st.markdown("""
+    **What This Demo Includes:**
+    - AI-powered competitive intelligence with Claude Sonnet 4
+    - Behavioral customer segmentation (K-means clustering)
+    - Comprehensive evaluation framework (data quality + ML metrics + LLM assessment)
+    - Production-grade features: rate limiting, error handling, hybrid LLM scoring
+    """)
+    st.stop()
+
 # Initialize Claude client
 claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+# Initialize usage tracking
+if "total_reports_generated" not in st.session_state:
+    st.session_state.total_reports_generated = 0
 
 WIKI_HEADERS = {
     'User-Agent': 'Marketing Intelligence Platform/1.0 (https://github.com/sulatt3/marketing-intelligence-platform; su.h.latt3@gmail.com)'
@@ -207,18 +229,125 @@ DATA:
 {news_text}
 {wiki_text}"""
 
+def llm_score_articles(articles: List[Dict[str, Any]], company: str) -> List[Dict[str, Any]]:
+    """
+    Use Claude to batch score article relevance
+    Returns articles with LLM-assigned relevance scores
+    """
+    import json
+    
+    # Prepare articles for batch scoring
+    articles_for_scoring = [
+        {
+            "id": i,
+            "title": article.get("title", ""),
+            "snippet": article.get("snippet", "")[:300]  # Limit snippet length
+        }
+        for i, article in enumerate(articles)
+    ]
+    
+    prompt = f"""You are a relevance scoring expert. Score each article's relevance to {company}.
+
+Return ONLY a valid JSON array of integer scores (0-100), one per article, in the same order.
+
+Scoring criteria:
+- 80-100: Article primarily about {company} (major announcement, detailed coverage, strategic move)
+- 60-79: Article significantly mentions {company} (important context, partnership, comparison, industry analysis)
+- 40-59: Article mentions {company} tangentially (brief reference, list inclusion, passing mention)
+- 20-39: Article barely mentions {company} (very peripheral, industry roundup)
+- 0-19: Article doesn't meaningfully relate to {company} (false positive, unrelated)
+
+Articles to score:
+{json.dumps(articles_for_scoring, indent=2)}
+
+Return format: [score1, score2, score3, ...]
+Example: [85, 72, 45, 91, 38, ...]
+
+IMPORTANT: Return ONLY the JSON array, nothing else."""
+
+    try:
+        message = claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        response_text = message.content[0].text.strip()
+        
+        # Parse JSON response
+        # Remove potential markdown code fences
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+        
+        scores = json.loads(response_text.strip())
+        
+        # Validate we got the right number of scores
+        if len(scores) != len(articles):
+            st.warning(f"LLM scoring mismatch: got {len(scores)} scores for {len(articles)} articles. Using rule-based scores.")
+            return articles
+        
+        # Assign LLM scores to articles
+        for i, article in enumerate(articles):
+            article["llm_relevance_score"] = scores[i]
+            # Keep original rule-based score as fallback
+            article["rule_based_score"] = article.get("relevance_score", 0)
+            # Use LLM score as primary
+            article["relevance_score"] = scores[i]
+        
+        return articles
+        
+    except Exception as e:
+        st.warning(f"LLM scoring failed: {str(e)}. Using rule-based scores.")
+        return articles
+
 @st.cache_data(ttl=3600)
 def generate_competitive_brief(company: str, use_news: bool, use_wikipedia: bool, num_articles: int) -> tuple:
     raw = collect_all_data(company, use_news, use_wikipedia)
     if not raw:
-        return "No data sources enabled. Please select at least one data source.", None
-    processed = process_data(raw, company, top_n=num_articles)
+        return "No data sources enabled. Please select at least one data source.", None, None
+    
+    # Step 1: Rule-based pre-filtering (fast, local)
+    processed = process_data(raw, company, top_n=100)  # Get top 100 candidates
     news_items = [i for i in processed if i.get("source") == "News"]
+    
     if len(news_items) < 5:
-        return f"Insufficient data for {company}. Only {len(news_items)} articles found. Try using the company's full legal name.", None
+        return f"Insufficient data for {company}. Only {len(news_items)} articles found. Try using the company's full legal name.", None, None
+    
+    # Step 2: LLM batch scoring (accurate, semantic understanding)
+    # Only use LLM if we have enough articles to make it worthwhile
+    MIN_ARTICLES_FOR_LLM = 20
+    llm_scored = False
+    
+    if len(news_items) >= MIN_ARTICLES_FOR_LLM:
+        # Apply LLM scoring to top candidates
+        news_items = llm_score_articles(news_items, company)
+        llm_scored = True
+        
+        # Step 3: Filter by LLM quality threshold
+        LLM_THRESHOLD = 50  # Only keep articles scoring ≥50
+        high_quality_articles = [item for item in news_items if item.get("relevance_score", 0) >= LLM_THRESHOLD]
+        
+        # If we filtered too aggressively and have too few articles, lower threshold
+        if len(high_quality_articles) < 10:
+            LLM_THRESHOLD = 40
+            high_quality_articles = [item for item in news_items if item.get("relevance_score", 0) >= LLM_THRESHOLD]
+        
+        news_items = high_quality_articles
+    
+    # Step 4: Final selection based on user's slider preference
+    final_articles = sorted(news_items, key=lambda x: x.get("relevance_score", 0), reverse=True)[:num_articles]
+    
+    # Combine with Wikipedia data for final processing
+    wikipedia_data = [i for i in processed if i.get("source") == "Wikipedia"]
+    final_processed = final_articles + wikipedia_data
+    
+    if len(final_articles) < 5:
+        return f"Insufficient high-quality data for {company}. Only {len(final_articles)} articles passed quality filter.", None, None
     
     try:
-        prompt = build_synthesis_prompt(processed, company)
+        prompt = build_synthesis_prompt(final_processed, company)
         
         message = claude_client.messages.create(
             model="claude-sonnet-4-20250514",
@@ -228,13 +357,24 @@ def generate_competitive_brief(company: str, use_news: bool, use_wikipedia: bool
             ]
         )
         
-        return message.content[0].text, processed
+        # Track scoring metadata
+        scoring_metadata = {
+            "llm_scored": llm_scored,
+            "articles_collected": len(raw),
+            "after_rule_filter": len(news_items) if not llm_scored else len(processed),
+            "after_llm_filter": len(news_items) if llm_scored else 0,
+            "articles_used": len(final_articles),
+            "llm_threshold": LLM_THRESHOLD if llm_scored else None
+        }
+        
+        return message.content[0].text, final_processed, scoring_metadata
+        
     except Exception as e:
         error_msg = str(e)
         if "rate_limit" in error_msg.lower() or "429" in error_msg:
-            return f"API rate limit reached. Please wait a few minutes. Data collection was successful ({len(news_items)} articles), but AI synthesis is temporarily unavailable.", processed
+            return f"API rate limit reached. Please wait a few minutes. Data collection was successful ({len(final_articles)} articles), but AI synthesis is temporarily unavailable.", final_processed, None
         else:
-            return f"Error generating report: {error_msg}", processed
+            return f"Error generating report: {error_msg}", final_processed, None
 
 def create_competitive_timeline_viz(processed_data):
     news = [i for i in processed_data if i.get("source") == "News" and i.get("date") != "Unknown"]
@@ -630,6 +770,8 @@ if "last_request_time" not in st.session_state:
     st.session_state.last_request_time = 0
 if "request_in_progress" not in st.session_state:
     st.session_state.request_in_progress = False
+if "scoring_metadata" not in st.session_state:
+    st.session_state.scoring_metadata = None
 
 # ==================== MAIN UI ====================
 
@@ -643,10 +785,11 @@ with st.expander("ℹ️ About This Project"):
     
     This platform demonstrates AI engineering capabilities through:
     - **Multi-API Orchestration**: News API + Wikipedia + Claude Sonnet 4
+    - **Hybrid LLM Scoring**: Rule-based pre-filtering + semantic relevance validation
     - **Machine Learning**: K-means behavioral segmentation (example model based on previous production system: 20M+ events, 28.95% conversion)
     - **Data Engineering**: ETL pipeline with deduplication, quality scoring, validation
     - **LLM Engineering**: Prompt engineering + output evaluation + hallucination detection
-    - **Production Deployment**: Rate limiting, error handling, CI/CD via Streamlit Cloud
+    - **Production Deployment**: Rate limiting, error handling, password protection, CI/CD
     
     **Tech Stack**: Python, Claude API, scikit-learn, Plotly, Streamlit
     
@@ -669,10 +812,17 @@ tab1, tab2, tab3 = st.tabs(["Competitive Intelligence", "Customer Intelligence",
 with tab1:
     with st.sidebar:
         st.header("Competitive Analysis")
+        
+        # Usage tracking display
+        reports_used = st.session_state.total_reports_generated
+        estimated_remaining = max(0, 39 - reports_used)
+        st.info(f"📊 Reports generated: {reports_used} | Estimated remaining: ~{estimated_remaining}")
+        
         company_name = st.text_input("Company Name", placeholder="e.g., Perplexity, Anthropic, OpenAI")
         st.markdown("---")
         st.subheader("Analysis Options")
         num_articles = st.slider("Articles to analyze", 20, 100, 40, 10)
+        st.caption("Uses hybrid scoring: Rule-based pre-filter + LLM semantic validation")
         st.markdown("---")
         generate_btn = st.button("Generate Report", type="primary", key="comp_generate")
         
@@ -719,20 +869,27 @@ with tab1:
                             status = st.empty()
                             
                             status.text("Collecting data...")
-                            prog.progress(25)
+                            prog.progress(20)
                             
-                            status.text("Processing articles...")
-                            prog.progress(50)
+                            status.text("Rule-based filtering...")
+                            prog.progress(40)
+                            
+                            status.text("LLM semantic scoring...")
+                            prog.progress(60)
                             
                             status.text("Generating insights...")
-                            prog.progress(75)
+                            prog.progress(80)
                             
-                            report, data = generate_competitive_brief(company_name, use_news, use_wikipedia, num_articles)
+                            report, data, scoring_meta = generate_competitive_brief(company_name, use_news, use_wikipedia, num_articles)
                             
                             prog.progress(100)
                             st.session_state.comp_report = report
                             st.session_state.comp_company = company_name
                             st.session_state.comp_data = data
+                            st.session_state.scoring_metadata = scoring_meta
+                            
+                            # Increment usage counter
+                            st.session_state.total_reports_generated += 1
                             
                             prog.empty()
                             status.empty()
@@ -1004,6 +1161,45 @@ with tab3:
                 st.metric("High Quality Articles", f"{quality_metrics['high_quality_rate']:.1f}%")
             with col4:
                 st.metric("Data Completeness", f"{quality_metrics['completeness_rate']:.1f}%")
+            
+            st.markdown("---")
+            
+            # Hybrid Scoring Pipeline Metrics
+            if st.session_state.scoring_metadata:
+                meta = st.session_state.scoring_metadata
+                
+                st.markdown("### Hybrid Scoring Pipeline")
+                st.caption("Rule-based pre-filtering + LLM semantic validation")
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Articles Collected", meta['articles_collected'])
+                with col2:
+                    if meta['llm_scored']:
+                        st.metric("After Rule Filter", meta['after_rule_filter'])
+                    else:
+                        st.metric("Rule-Based Only", meta['after_rule_filter'])
+                with col3:
+                    if meta['llm_scored']:
+                        st.metric("LLM Approved", meta['after_llm_filter'])
+                        st.caption(f"Threshold: ≥{meta['llm_threshold']}/100")
+                    else:
+                        st.metric("LLM Scoring", "Skipped")
+                        st.caption("Not enough articles")
+                with col4:
+                    st.metric("Final Selection", meta['articles_used'])
+                    st.caption("Used in report")
+                
+                if meta['llm_scored']:
+                    # Calculate pass rates
+                    llm_pass_rate = (meta['after_llm_filter'] / meta['after_rule_filter'] * 100) if meta['after_rule_filter'] > 0 else 0
+                    
+                    st.markdown(f"""
+                    **Pipeline Efficiency:**
+                    - Rule-based filter kept: {meta['after_rule_filter']}/{meta['articles_collected']} articles ({meta['after_rule_filter']/meta['articles_collected']*100:.1f}%)
+                    - LLM approved: {meta['after_llm_filter']}/{meta['after_rule_filter']} candidates ({llm_pass_rate:.1f}%)
+                    - Final selection: Top {meta['articles_used']} by LLM score
+                    """)
             
             st.markdown("---")
             

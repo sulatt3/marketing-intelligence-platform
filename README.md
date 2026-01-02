@@ -1,21 +1,23 @@
 # Marketing Intelligence Platform
 
-AI-powered competitive analysis and customer segmentation with comprehensive evaluation framework.
+AI-powered competitive analysis and customer segmentation with hybrid LLM scoring and comprehensive evaluation framework.
 
-**Live Demo:** [marketing-intelligence-platform-su.streamlit.app](https://marketing-intelligence-platform-su.streamlit.app)
+**Live Demo:** [marketing-intelligence-platform-su.streamlit.app](https://marketing-intelligence-platform-su.streamlit.app)  
+**Access:** Password-protected portfolio demo. Contact su.h.latt3@gmail.com for password.
 
 ---
 
 ## Overview
 
-The Marketing Intelligence Platform integrates real-time competitive intelligence with behavioral customer segmentation to provide actionable insights for marketing teams. Built with production-grade AI orchestration and comprehensive evaluation frameworks, the platform demonstrates enterprise-scale data processing patterns and responsible AI deployment.
+The Marketing Intelligence Platform integrates real-time competitive intelligence with behavioral customer segmentation to provide actionable insights for marketing teams. Built with production-grade AI orchestration, hybrid LLM scoring, and comprehensive evaluation frameworks, the platform demonstrates enterprise-scale data processing patterns and responsible AI deployment.
 
-**Key Innovation:** Comprehensive evaluation system including data quality scoring, ML model validation, and LLM output assessment with hallucination detection.
+**Key Innovation:** Hybrid relevance scoring combining rule-based pre-filtering with LLM semantic validation, plus comprehensive evaluation system including data quality scoring, ML model validation, and LLM output assessment with hallucination detection.
 
 ### Core Features
 
 **Module 1: Competitive Intelligence**
 - Multi-source data integration (News API, Wikipedia Pageviews)
+- **Hybrid LLM scoring:** Rule-based pre-filter + Claude semantic validation
 - AI-powered synthesis using Claude Sonnet 4
 - Smart deduplication (85% similarity threshold)
 - Multi-dimensional relevance scoring
@@ -25,13 +27,15 @@ The Marketing Intelligence Platform integrates real-time competitive intelligenc
 
 **Module 2: Customer Intelligence**
 - Behavior-based K-means clustering (5 segments)
-- Based on production Segmint system (20M+ events, 28.95% conversion rates)
+- Example model based on production Segmint system (20M+ events, 28.95% conversion rates)
 - Multi-dimensional behavioral analysis
 - Conversion rate modeling with recency penalties
 - Feature correlation analysis
 - CSV export for CRM integration
+- Note: Uses synthetic data for demonstration purposes
 
 **Module 3: Data Quality & Evaluation Metrics**
+- Hybrid scoring pipeline metrics (rule-based + LLM validation)
 - Data quality scoring (0-100 composite score)
 - LLM output evaluation (hallucination detection via citation rate)
 - ML clustering metrics (silhouette score, Davies-Bouldin, elbow method)
@@ -42,21 +46,27 @@ The Marketing Intelligence Platform integrates real-time competitive intelligenc
 
 ## Technical Architecture
 
-### Data Pipeline
+### Hybrid Scoring Pipeline
 ```
-Multi-Source Collection → Quality Scoring → AI Synthesis → Evaluation
-         ↓                      ↓               ↓              ↓
-    News API +          Deduplication      Claude API    Citation Rate
-    Wikipedia           Relevance Score    Synthesis     Specificity Check
-    Parallel Fetch      Validation         Prompting     Quality Metrics
+News API (150 articles)
+    ↓
+Rule-Based Pre-Filter (top 100 candidates)
+    ↓
+LLM Batch Scoring (Claude scores each 0-100)
+    ↓
+Quality Threshold (keep articles ≥50)
+    ↓
+User Selection (top N by LLM score)
+    ↓
+Final Report Generation
 ```
 
 ### Tech Stack
 
 **AI & ML**
-- Anthropic Claude Sonnet 4 (competitive intelligence synthesis)
+- Anthropic Claude Sonnet 4 (competitive intelligence synthesis + hybrid scoring)
 - scikit-learn (K-means clustering, StandardScaler)
-- Custom NLP (sentiment analysis, relevance scoring)
+- Custom NLP (sentiment analysis, rule-based pre-filtering)
 
 **Data Processing**
 - pandas, numpy (data manipulation)
@@ -75,7 +85,7 @@ Multi-Source Collection → Quality Scoring → AI Synthesis → Evaluation
 
 ### Prerequisites
 - Python 3.9+
-- [Anthropic Claude API key](https://console.anthropic.com/) (free tier: $5 credit)
+- [Anthropic Claude API key](https://console.anthropic.com/) ($5 free credit)
 - [News API key](https://newsapi.org/) (free tier: 100 requests/day)
 
 ### Setup
@@ -87,10 +97,11 @@ cd marketing-intelligence-platform
 pip install -r requirements.txt
 ```
 
-2. **Configure API keys** (`.streamlit/secrets.toml`):
+2. **Configure API keys and password** (`.streamlit/secrets.toml`):
 ```toml
 NEWSAPI_KEY = "your_newsapi_key_here"
 ANTHROPIC_API_KEY = "your_anthropic_key_here"
+DEMO_PASSWORD = "your_demo_password"
 ```
 
 3. **Run locally**
@@ -102,108 +113,278 @@ streamlit run streamlit_app.py
 
 ## Usage
 
+### Demo Access
+The live demo is password-protected to preserve API credits for reviewers.
+
+**For recruiters/interviewers:** Contact su.h.latt3@gmail.com for demo password.
+
 ### Competitive Intelligence
-1. Enter company name → Generate report
-2. View AI-synthesized strategic analysis
-3. Explore visualizations (sentiment, timeline)
-4. Download markdown report
+
+1. **Enter password** (first-time access)
+2. **Enter company name** (e.g., "Anthropic", "OpenAI", "Perplexity")
+3. **Adjust article count** (20-100, default: 40)
+4. **Generate report** - Hybrid scoring + AI synthesis in 20-30 seconds
+
+**What happens behind the scenes:**
+- Collects 150+ articles from News API
+- Rule-based pre-filter selects top 100 candidates
+- Claude batch-scores each article 0-100 for semantic relevance
+- Filters to articles scoring ≥50 (LLM-approved)
+- Selects top N articles based on your slider
+- Generates comprehensive strategic report
+
+**Output includes:**
+- Executive summary
+- Recent strategic moves
+- Product launches & features
+- Funding, partnerships, hiring
+- Market interest trends
+- Competitive threats and opportunities
+- Strategic recommendations
+- Downloadable markdown report
 
 ### Customer Intelligence
-1. Auto-generated segments (1,000 synthetic customers)
-2. Explore 5 behavioral segments with conversion rates
-3. View distributions, correlations, performance metrics
-4. Export CSV for CRM integration
+
+Auto-generated segments (1,000 synthetic customers) with:
+- 5 behavioral segments with conversion rates
+- Purchase behavior analysis
+- Segment performance metrics
+- Export functionality
+
+**Note:** Synthetic data for demonstration. Segmentation logic replicates production system (20M+ events, 28.95% conversion).
 
 ### Data Quality & Metrics
-1. Review data quality scores and cleaning metrics
-2. Evaluate LLM output quality (completeness, citations, specificity)
-3. Validate ML clustering performance (silhouette, elbow plot)
-4. Inspect feature correlations and preprocessing steps
+
+**Competitive Intelligence Metrics:**
+- Hybrid scoring pipeline breakdown
+- LLM validation pass rates
+- Data quality score
+- LLM output evaluation (citation rate, specificity, completeness)
+
+**Customer Intelligence Metrics:**
+- Clustering quality (silhouette, Davies-Bouldin)
+- Elbow method visualization
+- Feature correlation analysis
+- EDA statistics
 
 ---
 
 ## Key Technical Implementations
 
-### 1. Smart Deduplication
-Fuzzy string matching (85% similarity) eliminates near-duplicate articles
+### 1. Hybrid LLM Scoring
+**Two-stage relevance system:**
+- **Stage 1:** Rule-based pre-filter (keyword matching, recency, source authority)
+- **Stage 2:** LLM semantic validation (Claude scores 0-100)
+- **Threshold:** Articles must score ≥50 to be included
+- **Fallback:** Uses rule-based only if <20 articles collected
 
-### 2. Multi-Dimensional Relevance Scoring
-- Title mentions: 40pts | Content: 20pts | Frequency: 20pts | Recency: 15pts
+### 2. LLM Batch Scoring
+Efficient single API call to score 100 articles simultaneously with structured JSON output.
 
-### 3. LLM Output Evaluation
-- **Section Completeness:** 9 expected sections validation
-- **Citation Rate:** Hallucination detection (% source articles referenced)
-- **Specificity Score:** Concrete facts vs. generic statements
-- **Overall Quality:** 0-100 composite metric
+### 3. Smart Deduplication
+SequenceMatcher fuzzy matching (85% similarity threshold) eliminates near-duplicates.
 
-### 4. ML Clustering Metrics
-- Silhouette score (cluster separation)
-- Davies-Bouldin score (cluster cohesion)
-- Elbow method (optimal k validation)
+### 4. Multi-Dimensional Relevance (Rule-Based)
+7 scoring factors:
+- Title/content analysis (70 points)
+- Contextual keywords (15 points)
+- Positioning in article (10 points)
+- Recency weighting (20 points)
+- Content quality (10 points)
+- Source authority (5 points)
+Max: 100 points
 
-### 5. Conversion Rate Modeling
+### 5. Behavior-Based Segmentation
+Priority-based labeling ensures unique, meaningful segments:
+1. Churn risk (recency >80 days)
+2. High value (AOV >$1,000)
+3. High frequency (purchases >4.5)
+4. High engagement (clicks >23, purchases >2.5)
+5. Low conversion (purchases <2.0)
+
+### 6. Conversion Rate Estimation
 ```
-Base = (Purchases / Clicks) × 100
-Penalty = 1 / (1 + Days/30)
-Final = Base × Penalty
+Base Rate = (Avg Purchases / Avg Clicks) × 100
+Recency Penalty = 1 / (1 + Days Since Purchase / 30)
+Final Rate = Base Rate × Recency Penalty
 ```
+
+### 7. LLM Output Evaluation
+**Comprehensive framework:**
+- Section completeness (9 expected sections)
+- Citation rate (hallucination detection)
+- Specificity score (dates, numbers, concrete facts)
+- Length appropriateness (1,000-1,500 words target)
+
+### 8. Production Safeguards
+- Password protection (preserves API credits)
+- 2-minute rate limiting between requests
+- Request-in-progress tracking
+- Usage tracking and budget monitoring
+- Graceful error handling
 
 ---
 
 ## Evaluation Framework
 
-### Data Quality
-Completeness, deduplication rate, source diversity, temporal coverage, relevance distribution
+### Hybrid Scoring Metrics
+- Articles collected
+- Rule-based filter pass rate
+- LLM validation pass rate
+- Quality threshold effectiveness
 
-### ML Model
-Silhouette score, Davies-Bouldin score, elbow method, segment balance, feature correlation
+### Data Quality Metrics
+- Completeness rate, deduplication rate, source diversity, temporal coverage, relevance distribution
 
-### LLM Output
-Section completeness, citation rate (hallucination detection), specificity score, length appropriateness
+### ML Model Metrics
+- Silhouette score, Davies-Bouldin score, elbow method, segment balance, feature correlation
+
+### LLM Output Metrics
+- Section completeness, citation rate (hallucination detection), specificity score, length appropriateness
+
+---
+
+## Cost & Performance
+
+### API Usage Per Report
+- **News API:** 1 call (free tier: 100/day)
+- **Claude API:** 2 calls (batch scoring + report generation)
+- **Cost:** ~$0.12 per report
+- **Time:** 20-30 seconds total
+
+### Free Credit Budget
+- **$5 credit** = ~39 reports
+- Password protection prevents unauthorized usage
+- Usage tracking helps monitor remaining budget
+
+---
+
+## Project Structure
+
+```
+marketing-intelligence-platform/
+├── streamlit_app.py          # Main application
+├── requirements.txt           # Python dependencies
+├── .streamlit/
+│   └── secrets.toml          # API keys + password (not in git)
+├── README.md                 # Documentation
+└── .gitignore               # Git ignore rules
+```
+
+---
+
+## Dependencies
+
+```
+streamlit>=1.28.0
+anthropic>=0.39.0
+newsapi-python==0.2.7
+plotly>=5.17.0
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+requests>=2.31.0
+```
 
 ---
 
 ## Deployment
 
-**Streamlit Cloud** (recommended): Connect GitHub → Add secrets → Deploy
+### Streamlit Cloud (Recommended)
 
-**Production considerations:**
-- Rate limiting (2-min cooldown)
-- Parallel API orchestration
-- Session state management
-- Graceful error handling
+1. Push to GitHub
+2. Connect at [share.streamlit.io](https://share.streamlit.io)
+3. **Add secrets:**
+   ```toml
+   NEWSAPI_KEY = "your_key"
+   ANTHROPIC_API_KEY = "your_key"
+   DEMO_PASSWORD = "your_password"
+   ```
+4. Deploy
+
+### Alternative Platforms
+- **Heroku:** Use `Procfile` with `web: streamlit run streamlit_app.py`
+- **AWS EC2:** Run with systemd service
+- **Docker:** Create `Dockerfile` with Streamlit base image
+
+---
+
+## Production Considerations
+
+### Rate Limiting
+- **News API:** 100 requests/day (free tier)
+- **Claude API:** 50 requests/minute, ~$0.12 per report
+- **App safeguards:** 2-min cooldown, request tracking
+
+### Scalability
+- Session state management for multi-user environments
+- Caching with TTL (1 hour) reduces redundant API calls
+- Parallel API orchestration with ThreadPoolExecutor
+
+### Monitoring
+- Data quality dashboard
+- LLM evaluation metrics
+- Usage tracking
+- Error handling with user-friendly messaging
 
 ---
 
 ## Roadmap
 
 **Completed:**
-- ✅ Competitive Intelligence with AI synthesis
-- ✅ Customer segmentation with evaluation
-- ✅ Comprehensive metrics (data + ML + LLM)
+- ✅ Competitive Intelligence with hybrid LLM scoring
+- ✅ Customer Intelligence with behavioral segmentation
+- ✅ Comprehensive evaluation framework (data + ML + LLM)
+- ✅ Password protection and usage tracking
+- ✅ Production deployment with safeguards
 
-**Planned:**
-- [ ] User feedback loop
-- [ ] Module 4: Marketing Insights
-- [ ] Multi-company comparison
-- [ ] Historical tracking
-- [ ] Custom prompt templates
-- [ ] Enhanced exports (PDF)
+**Planned Enhancements:**
+- [ ] User feedback loop and rating system
+- [ ] Next Module: Marketing Insights & Recommendations engine
+- [ ] Multi-company comparison mode
+- [ ] Historical trend tracking and time-series analysis
+- [ ] Custom prompt templates for different industries
+- [ ] Export to PDF and enhanced report formats
+- [ ] Automated alerts for competitive moves
 
 ---
 
 ## About
 
-**Portfolio Project by Su Latt** | [GitHub](https://github.com/sulatt3) | [LinkedIn](https://www.linkedin.com/in/su-l-67630a67/)
+This project demonstrates full-stack AI engineering capabilities including:
+- **Hybrid LLM Architecture:** Combining rule-based efficiency with semantic understanding
+- Multi-API orchestration and data integration
+- Prompt engineering for business intelligence synthesis
+- Production ML patterns (K-means, feature engineering, evaluation)
+- LLM output quality assessment and hallucination detection
+- Interactive data visualization
+- Scalable architecture design
+- Responsible AI deployment practices
 
-Demonstrates AI engineering capabilities:
-- Multi-API orchestration
-- LLM prompt engineering & evaluation
-- Production ML implementation
-- Data quality frameworks
-- Responsible AI deployment
+Built by [Su Latt](https://github.com/sulatt3) as part of an AI engineering portfolio.
 
-**Background:** Senior Analytics and AI Manager. 6+ years experience managing 15-person team, $2B+ impact across Fortune 500 clients. Customer segmentation based on production Segmint system (20M+ events, 28.95% conversion).
+**Background:** Senior Analytics and AI Manager. 6+ years experience managing 15-person team, $2B+ impact across Fortune 500 clients. This project showcases technical depth in AI systems, hybrid architectures, ML implementation, and production deployment.
+
+**Key Achievement:** Customer segmentation logic based on production Segmint system that processed 20M+ customer events and achieved conversion rates up to 28.95%.
+
+---
+
+## Technical Highlights for Interviews
+
+**Hybrid LLM Scoring:**
+> "I implemented a two-stage hybrid scoring system. Rule-based pre-filtering handles the obvious cases for speed and cost-efficiency, then Claude provides semantic validation by batch-scoring the top 100 candidates. Only articles scoring ≥50 are included in the final analysis. This combines deterministic efficiency with LLM semantic understanding while keeping costs manageable at ~$0.12 per report."
+
+**Hallucination Detection:**
+> "I track citation rate in LLM-generated reports - what percentage of provided source articles are actually referenced. Low citation rates (<40%) indicate potential hallucinations. I also measure specificity by counting dates, numbers, and concrete facts versus generic statements."
+
+**Production Thinking:**
+> "The platform includes password protection to preserve API credits, 2-minute rate limiting to prevent abuse, usage tracking for budget monitoring, and graceful degradation when APIs fail. These aren't just nice-to-haves - they're essential for any production AI system."
+
+---
+
+## License
+
+MIT License
 
 ---
 
@@ -212,10 +393,14 @@ Demonstrates AI engineering capabilities:
 **Su Latt**
 - GitHub: [@sulatt3](https://github.com/sulatt3)
 - Email: su.h.latt3@gmail.com
-- LinkedIn: [su-latt](https://www.linkedin.com/in/su-l-67630a67/)
+- LinkedIn: [su-l-67630a67](https://www.linkedin.com/in/su-l-67630a67/)
 
 ---
 
-## License
+## Acknowledgments
 
-MIT License
+- **Anthropic Claude:** AI synthesis and hybrid semantic scoring
+- **Segmint System:** Customer segmentation logic from production system (20M+ events)
+- **News API:** Real-time news aggregation
+- **Wikipedia Pageviews API:** Market interest data
+- **scikit-learn:** Machine learning implementation
