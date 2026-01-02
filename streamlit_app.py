@@ -643,7 +643,7 @@ with st.expander("ℹ️ About This Project"):
     
     This platform demonstrates AI engineering capabilities through:
     - **Multi-API Orchestration**: News API + Wikipedia + Claude Sonnet 4
-    - **Machine Learning**: K-means behavioral segmentation (based on production system: 20M+ events, 28.95% conversion)
+    - **Machine Learning**: K-means behavioral segmentation (example model based on previous production system: 20M+ events, 28.95% conversion)
     - **Data Engineering**: ETL pipeline with deduplication, quality scoring, validation
     - **LLM Engineering**: Prompt engineering + output evaluation + hallucination detection
     - **Production Deployment**: Rate limiting, error handling, CI/CD via Streamlit Cloud
@@ -651,13 +651,13 @@ with st.expander("ℹ️ About This Project"):
     **Tech Stack**: Python, Claude API, scikit-learn, Plotly, Streamlit
     
     **Roadmap (Planned Enhancements):**
-    - 🔄 User feedback loop and rating system
-    - 📊 Module 3: Marketing Insights & Recommendations engine
-    - 🔍 Multi-company comparison mode
-    - 📈 Historical trend tracking and time-series analysis
-    - 🎯 Custom prompt templates for different industries
-    - 💾 Export to PDF and enhanced report formats
-    - 🔔 Automated alerts for competitive moves
+    - User feedback loop and rating system
+    - Next Module: Marketing Insights & Recommendations engine
+    - Multi-company comparison mode
+    - Historical trend tracking and time-series analysis
+    - Custom prompt templates for different industries
+    - Export to PDF and enhanced report formats
+    - Automated alerts for competitive moves
     """)
 
 st.markdown("---")
@@ -1261,7 +1261,7 @@ st.markdown("""
     <p><strong>Marketing Intelligence Platform</strong> | AI-Powered Insights for Competitive Strategy</p>
     <p>Built by <a href='https://github.com/sulatt3' target='_blank'>Su Latt</a> | 
     <a href='https://github.com/sulatt3/marketing-intelligence-platform' target='_blank'>View on GitHub</a> | 
-    <a href='https://linkedin.com/in/su-latt' target='_blank'>LinkedIn</a></p>
+    <a href='https://www.linkedin.com/in/su-l-67630a67/' target='_blank'>LinkedIn</a></p>
     <p style='font-size: 0.9em;'>Demonstrates: Multi-API Orchestration • LLM Engineering • ML Implementation • Production Deployment</p>
 </div>
 """, unsafe_allow_html=True)
