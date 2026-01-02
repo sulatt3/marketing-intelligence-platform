@@ -1127,11 +1127,11 @@ with tab3:
                 
                 st.markdown("**Data Cleaning Steps Applied:**")
                 st.markdown("""
-                1. ✅ Removed duplicate articles (similarity threshold: 85%)
-                2. ✅ Filtered articles with missing critical fields
-                3. ✅ Scored articles by relevance (multi-factor algorithm)
-                4. ✅ Validated date formats and temporal consistency
-                5. ✅ Cleaned text encoding and special characters
+                1. Removed duplicate articles (similarity threshold: 85%)
+                2. Filtered articles with missing critical fields
+                3. Scored articles by relevance (multi-factor algorithm)
+                4. Validated date formats and temporal consistency
+                5. Cleaned text encoding and special characters
                 """)
         
         else:
