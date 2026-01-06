@@ -860,34 +860,46 @@ with tab1:
         st.markdown("---")
         st.subheader("Analysis Options")
         num_articles = st.slider("Articles to analyze", 20, 100, 40, 10, 
-                                 help="Final number of articles in your report")
+                                 help="Target number of articles (actual count may vary based on availability and quality)")
         st.caption("💡 20 = Quick analysis (5-10 sec) | 40 = Balanced (15-20 sec) | 100 = Deep dive (30-40 sec)")
         
         with st.expander("ℹ️ How Article Selection Works", expanded=False):
             st.markdown(f"""
             **Hybrid Scoring Pipeline:**
             
-            1. **Collect** ~150 recent articles from News API
+            **Your Selection: {num_articles} articles**
             
-            2. **Rule-based pre-filter** → Top {num_articles * 3} candidates
-               - Uses keyword matching, recency, source authority
-               - Fast, runs locally
+            **Step 1: Collect** ~150 recent articles from News API
             
-            3. **LLM semantic scoring** → Llama 3.3 scores each 0-100
-               - Understands context (e.g., "Sam Altman" → OpenAI)
-               - Catches competitor news, ecosystem updates
-               - Scores articles even without direct company mentions
+            **Step 2: Rule-based pre-filter** → Top {num_articles * 3} candidates
+            - Multiplied by 3× to ensure sufficient high-quality options
+            - Uses keyword matching, recency, source authority
+            - Fast, runs locally (no API cost)
             
-            4. **Adaptive threshold** → Keep articles scoring ≥30-40
-               - Automatically adjusts to ensure we have enough articles
-               - Aims for ~{int(num_articles * 1.5)} candidates after filtering
+            **Step 3: LLM semantic scoring** → Llama 3.3 scores each 0-100
+            - Understands context (e.g., "Sam Altman" → OpenAI)
+            - Catches competitor news, ecosystem updates, leadership mentions
+            - Scores based on competitive intelligence value, not just company name
             
-            5. **Final selection** → Top **{num_articles} articles** by LLM score
-               - Exactly what you requested
-               - Sorted by semantic relevance
+            **Step 4: Adaptive quality filtering**
+            - Tries threshold of 40, 35, 30, 25, 20 (in that order)
+            - Keeps lowering until we have enough quality articles
+            - Aims for ~{int(num_articles * 1.5)} articles passing filter
             
-            **Why this works:** Rule-based handles obvious filtering (speed), LLM handles 
-            nuanced relevance (quality). You get the {num_articles} best articles.
+            **Step 5: Final selection** → Up to **{num_articles} articles**
+            - Takes top-scoring articles by LLM score
+            - **Note:** If fewer than {num_articles} articles pass quality thresholds, 
+              you'll get fewer (prioritizing quality over quantity)
+            - Sorted by semantic relevance (best first)
+            
+            **Why 3× multiplier?** 
+            - Not all articles will pass LLM quality threshold (typically 40-60% pass)
+            - Multiplying by 3× ensures we usually have enough high-quality articles
+            - For sparse coverage companies, you may get fewer than requested
+            
+            **Quality over quantity:** The system prioritizes relevant, high-quality articles 
+            over hitting an arbitrary count. Better to analyze 31 great articles than 60 
+            mediocre ones.
             """)
         
         st.markdown("---")
