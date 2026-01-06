@@ -241,29 +241,56 @@ def llm_score_articles(articles: List[Dict[str, Any]], company: str) -> List[Dic
         {
             "id": i,
             "title": article.get("title", ""),
-            "snippet": article.get("snippet", "")[:300]  # Limit snippet length
+            "snippet": article.get("snippet", "")[:400]  # Increased for more context
         }
         for i, article in enumerate(articles)
     ]
     
-    prompt = f"""You are a relevance scoring expert. Score each article's relevance to {company}.
+    prompt = f"""You are a competitive intelligence analyst scoring article relevance to {company}.
 
-Return ONLY a valid JSON array of integer scores (0-100), one per article, in the same order.
+IMPORTANT: Use SEMANTIC relevance, not just keyword matching. An article can be highly relevant even without directly naming {company}.
 
-Scoring criteria:
-- 80-100: Article primarily about {company} (major announcement, detailed coverage, strategic move)
-- 60-79: Article significantly mentions {company} (important context, partnership, comparison, industry analysis)
-- 40-59: Article mentions {company} tangentially (brief reference, list inclusion, passing mention)
-- 20-39: Article barely mentions {company} (very peripheral, industry roundup)
-- 0-19: Article doesn't meaningfully relate to {company} (false positive, unrelated)
+Score each article 0-100 based on relevance to understanding {company}'s competitive position:
+
+**Scoring Guidelines:**
+
+80-100 (HIGHLY RELEVANT):
+- Direct announcements, launches, or strategic moves by {company}
+- Detailed analysis of {company}'s products, strategy, or market position
+- Major news events involving {company} directly
+
+60-79 (VERY RELEVANT):
+- Competitive comparisons mentioning {company}
+- Industry analysis where {company} is a key player
+- Partnerships, funding, or leadership changes at {company}
+- Coverage of {company}'s ecosystem or related products
+
+40-59 (MODERATELY RELEVANT):
+- Industry trends affecting {company}'s market
+- Competitor moves that impact {company}'s position
+- Regulatory/policy changes relevant to {company}'s business
+- Technology developments in {company}'s domain
+- Articles mentioning {company}'s leadership or key people
+
+20-39 (SOMEWHAT RELEVANT):
+- Broad industry news tangentially related
+- Market trends with indirect relevance
+- General tech news where {company} might be peripherally involved
+
+0-19 (NOT RELEVANT):
+- Completely unrelated topics
+- Different industry or company
+- False positives from keyword matching
+
+**Key Point:** An article about "{company}'s competitors launching new products" or "{company}'s CEO speaking on AI safety" is HIGHLY relevant even if it doesn't repeat the company name multiple times.
 
 Articles to score:
 {json.dumps(articles_for_scoring, indent=2)}
 
 Return format: [score1, score2, score3, ...]
-Example: [85, 72, 45, 91, 38, ...]
+Example: [85, 62, 48, 91, 33, ...]
 
-IMPORTANT: Return ONLY the JSON array, nothing else."""
+Return ONLY the JSON array, nothing else."""
 
     try:
         completion = groq_client.chat.completions.create(
@@ -309,38 +336,51 @@ def generate_competitive_brief(company: str, use_news: bool, use_wikipedia: bool
     if not raw:
         return "No data sources enabled. Please select at least one data source.", None, None
     
-    # Step 1: Rule-based pre-filtering (fast, local)
-    processed = process_data(raw, company, top_n=100)  # Get top 100 candidates
+    # Step 1: Rule-based pre-filtering 
+    # Get 3x the user's request to give LLM excellent candidates to choose from
+    # Since Groq is free, we can afford to be generous with the candidate pool
+    rule_filter_size = min(num_articles * 3, 300)
+    processed = process_data(raw, company, top_n=rule_filter_size)
     news_items = [i for i in processed if i.get("source") == "News"]
     
     if len(news_items) < 5:
         return f"Insufficient data for {company}. Only {len(news_items)} articles found. Try using the company's full legal name.", None, None
     
-    # Step 2: LLM batch scoring (accurate, semantic understanding)
-    # Only use LLM if we have enough articles to make it worthwhile
-    MIN_ARTICLES_FOR_LLM = 20
+    # Step 2: LLM semantic scoring
+    MIN_ARTICLES_FOR_LLM = 15
     llm_scored = False
+    LLM_THRESHOLD = 30  # Default threshold
     
     if len(news_items) >= MIN_ARTICLES_FOR_LLM:
-        # Apply LLM scoring to top candidates
+        # Apply LLM scoring with semantic understanding
         news_items = llm_score_articles(news_items, company)
         llm_scored = True
         
-        # Step 3: Filter by LLM quality threshold
-        LLM_THRESHOLD = 50  # Only keep articles scoring ≥50
+        # Step 3: Adaptive threshold - aim to have ~1.5x user's request after filtering
+        # This ensures we have good articles to choose from
+        target_after_filter = int(num_articles * 1.5)
+        
+        # Try different thresholds to hit target
+        for threshold in [40, 35, 30, 25, 20]:
+            candidates = [item for item in news_items if item.get("relevance_score", 0) >= threshold]
+            if len(candidates) >= target_after_filter:
+                LLM_THRESHOLD = threshold
+                break
+            LLM_THRESHOLD = threshold  # Use lowest threshold we tried
+        
         high_quality_articles = [item for item in news_items if item.get("relevance_score", 0) >= LLM_THRESHOLD]
         
-        # If we filtered too aggressively and have too few articles, lower threshold
+        # Ensure we have at least SOME articles
         if len(high_quality_articles) < 10:
-            LLM_THRESHOLD = 40
+            LLM_THRESHOLD = 15
             high_quality_articles = [item for item in news_items if item.get("relevance_score", 0) >= LLM_THRESHOLD]
         
         news_items = high_quality_articles
     
-    # Step 4: Final selection based on user's slider preference
+    # Step 4: Final selection - exactly what user requested (or all available if fewer)
     final_articles = sorted(news_items, key=lambda x: x.get("relevance_score", 0), reverse=True)[:num_articles]
     
-    # Combine with Wikipedia data for final processing
+    # Combine with Wikipedia data
     wikipedia_data = [i for i in processed if i.get("source") == "Wikipedia"]
     final_processed = final_articles + wikipedia_data
     
@@ -819,8 +859,37 @@ with tab1:
         company_name = st.text_input("Company Name", placeholder="e.g., Perplexity, Anthropic, OpenAI")
         st.markdown("---")
         st.subheader("Analysis Options")
-        num_articles = st.slider("Articles to analyze", 20, 100, 40, 10)
-        st.caption("Uses hybrid scoring: Rule-based pre-filter + LLM semantic validation")
+        num_articles = st.slider("Articles to analyze", 20, 100, 40, 10, 
+                                 help="Final number of articles in your report")
+        st.caption("💡 20 = Quick analysis (5-10 sec) | 40 = Balanced (15-20 sec) | 100 = Deep dive (30-40 sec)")
+        
+        with st.expander("ℹ️ How Article Selection Works", expanded=False):
+            st.markdown(f"""
+            **Hybrid Scoring Pipeline:**
+            
+            1. **Collect** ~150 recent articles from News API
+            
+            2. **Rule-based pre-filter** → Top {num_articles * 3} candidates
+               - Uses keyword matching, recency, source authority
+               - Fast, runs locally
+            
+            3. **LLM semantic scoring** → Llama 3.3 scores each 0-100
+               - Understands context (e.g., "Sam Altman" → OpenAI)
+               - Catches competitor news, ecosystem updates
+               - Scores articles even without direct company mentions
+            
+            4. **Adaptive threshold** → Keep articles scoring ≥30-40
+               - Automatically adjusts to ensure we have enough articles
+               - Aims for ~{int(num_articles * 1.5)} candidates after filtering
+            
+            5. **Final selection** → Top **{num_articles} articles** by LLM score
+               - Exactly what you requested
+               - Sorted by semantic relevance
+            
+            **Why this works:** Rule-based handles obvious filtering (speed), LLM handles 
+            nuanced relevance (quality). You get the {num_articles} best articles.
+            """)
+        
         st.markdown("---")
         generate_btn = st.button("Generate Report", type="primary", key="comp_generate")
         
