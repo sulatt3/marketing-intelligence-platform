@@ -302,13 +302,28 @@ Return ONLY the JSON array, nothing else."""
         
         response_text = completion.choices[0].message.content.strip()
         
-        # Parse JSON response
-        # Remove potential markdown code fences
-        if response_text.startswith("```"):
-            response_text = response_text.split("```")[1]
-            if response_text.startswith("json"):
-                response_text = response_text[4:]
+        # Robust JSON extraction
+        # LLM might add text before/after the array, so we need to extract just the JSON
         
+        # Remove markdown code fences if present
+        if "```" in response_text:
+            # Extract content between code fences
+            parts = response_text.split("```")
+            for part in parts:
+                part = part.strip()
+                if part.startswith("json"):
+                    part = part[4:].strip()
+                if part.startswith("[") and part.endswith("]"):
+                    response_text = part
+                    break
+        
+        # Find the JSON array in the response (look for [...])
+        import re
+        json_match = re.search(r'\[[\d,\s]+\]', response_text)
+        if json_match:
+            response_text = json_match.group(0)
+        
+        # Parse JSON
         scores = json.loads(response_text.strip())
         
         # Validate we got the right number of scores
