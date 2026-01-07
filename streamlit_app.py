@@ -33,7 +33,7 @@ demo_password = st.text_input("🔒 Demo Access Password", type="password", key=
 
 if demo_password != os.getenv("DEMO_PASSWORD", ""):
     st.warning("🔒 This is a portfolio demonstration. Password required for access.")
-    st.info("📧 Recruiters/Interviewers: Request password at su.h.latt3@gmail.com")
+    st.info("📧 For access, contact: su.h.latt3@gmail.com")
     st.markdown("---")
     st.markdown("""
     **What This Demo Includes:**
@@ -248,6 +248,8 @@ def llm_score_articles(articles: List[Dict[str, Any]], company: str) -> List[Dic
     
     prompt = f"""You are a competitive intelligence analyst scoring article relevance to {company}.
 
+CRITICAL: You MUST return EXACTLY {len(articles)} scores, one for each article below.
+
 IMPORTANT: Use SEMANTIC relevance, not just keyword matching. An article can be highly relevant even without directly naming {company}.
 
 Score each article 0-100 based on relevance to understanding {company}'s competitive position:
@@ -284,13 +286,15 @@ Score each article 0-100 based on relevance to understanding {company}'s competi
 
 **Key Point:** An article about "{company}'s competitors launching new products" or "{company}'s CEO speaking on AI safety" is HIGHLY relevant even if it doesn't repeat the company name multiple times.
 
+**THERE ARE {len(articles)} ARTICLES BELOW. RETURN EXACTLY {len(articles)} SCORES.**
+
 Articles to score:
 {json.dumps(articles_for_scoring, indent=2)}
 
-Return format: [score1, score2, score3, ...]
+Return format: ONLY a JSON array with {len(articles)} integer scores
 Example: [85, 62, 48, 91, 33, ...]
 
-Return ONLY the JSON array, nothing else."""
+CRITICAL: Return ONLY the JSON array [score1, score2, ...], nothing else. No explanation, no markdown, just the array."""
 
     try:
         completion = groq_client.chat.completions.create(
@@ -303,32 +307,38 @@ Return ONLY the JSON array, nothing else."""
         response_text = completion.choices[0].message.content.strip()
         
         # Robust JSON extraction
-        # LLM might add text before/after the array, so we need to extract just the JSON
-        
-        # Remove markdown code fences if present
-        if "```" in response_text:
-            # Extract content between code fences
-            parts = response_text.split("```")
-            for part in parts:
-                part = part.strip()
-                if part.startswith("json"):
-                    part = part[4:].strip()
-                if part.startswith("[") and part.endswith("]"):
-                    response_text = part
-                    break
-        
-        # Find the JSON array in the response (look for [...])
         import re
-        json_match = re.search(r'\[[\d,\s]+\]', response_text)
+        
+        # Strategy 1: Try to find JSON array with proper regex
+        # Match array with numbers, commas, whitespace, and newlines
+        json_match = re.search(r'\[[\d,\s\n]+\]', response_text, re.DOTALL)
         if json_match:
             response_text = json_match.group(0)
+        else:
+            # Strategy 2: Remove everything before first [ and after last ]
+            if '[' in response_text and ']' in response_text:
+                start_idx = response_text.index('[')
+                end_idx = response_text.rindex(']') + 1
+                response_text = response_text[start_idx:end_idx]
+        
+        # Remove any remaining markdown or explanatory text
+        if "```" in response_text:
+            response_text = response_text.replace("```json", "").replace("```", "")
         
         # Parse JSON
-        scores = json.loads(response_text.strip())
+        try:
+            scores = json.loads(response_text.strip())
+        except json.JSONDecodeError as e:
+            # If parsing fails, show what we tried to parse (for debugging)
+            st.error(f"JSON parsing failed. Response preview: {response_text[:200]}...")
+            st.warning("Using rule-based scores as fallback.")
+            return articles
         
         # Validate we got the right number of scores
         if len(scores) != len(articles):
             st.warning(f"LLM scoring mismatch: got {len(scores)} scores for {len(articles)} articles. Using rule-based scores.")
+            # Show first few scores for debugging
+            st.caption(f"Debug: First 10 scores: {scores[:10]}")
             return articles
         
         # Assign LLM scores to articles
@@ -882,9 +892,11 @@ with tab1:
             st.markdown(f"""
             **Hybrid Scoring Pipeline:**
             
-            **Your Selection: {num_articles} articles**
+            **Your Selection: {num_articles} articles (target)**
             
-            **Step 1: Collect** ~150 recent articles from News API
+            **Step 1: Collect** from News API
+            - Requests up to 100 articles from last 30 days
+            - Actually receives: ~60-150 (varies by company/coverage)
             
             **Step 2: Rule-based pre-filter** → Top {num_articles * 3} candidates
             - Multiplied by 3× to ensure sufficient high-quality options
@@ -987,6 +999,12 @@ with tab1:
                         status.empty()
                     
                     st.success("Analysis complete")
+                    
+                    # Show note if we got significantly fewer articles than requested
+                    if st.session_state.comp_data:
+                        news_count = len([d for d in st.session_state.comp_data if d.get("source") == "News"])
+                        if news_count < num_articles * 0.7:  # Got less than 70% of requested
+                            st.info(f"Note: Found {news_count} high-quality articles (you requested {num_articles}). The system prioritizes semantic relevance and filters out tangentially related content.")
                 finally:
                     # Always clear the in-progress flag
                     st.session_state.request_in_progress = False

@@ -116,7 +116,7 @@ streamlit run streamlit_app.py
 ### Demo Access
 The live demo is password-protected to preserve API credits for reviewers.
 
-**For recruiters/interviewers:** Contact su.h.latt3@gmail.com for demo password.
+**For demo access:** Contact su.h.latt3@gmail.com for password.
 
 ### Competitive Intelligence
 
@@ -375,7 +375,7 @@ Built by [Su Latt](https://github.com/sulatt3) as part of an AI engineering port
 > "I implemented a two-stage hybrid scoring system. Rule-based pre-filtering handles the obvious cases for speed and cost-efficiency, then Llama 3.3 70B (via Groq) provides semantic validation by batch-scoring the top 100 candidates. Only articles scoring ≥50 are included in the final analysis. This combines deterministic efficiency with LLM semantic understanding at zero cost using Groq's free inference API."
 
 **Cost Optimization:**
-> "I chose Groq's Llama 3.3 70B for production deployment because it provides excellent quality (comparable to Claude/GPT-4) with unlimited free usage. For a portfolio demo that might be accessed by multiple recruiters, this eliminates budget constraints while maintaining professional-grade outputs. In production, I'd evaluate the cost-quality trade-off and potentially upgrade to Claude or GPT-4 if needed."
+> "I chose Groq's Llama 3.3 70B for production deployment because it provides excellent quality (comparable to Claude/GPT-4) with unlimited free usage. For a portfolio demo that might be publicly accessed, this eliminates budget constraints while maintaining professional-grade outputs. In production, I'd evaluate the cost-quality trade-off and potentially upgrade to Claude or GPT-4 if needed."
 
 **Hallucination Detection:**
 > "I track citation rate in LLM-generated reports - what percentage of provided source articles are actually referenced. Low citation rates (<40%) indicate potential hallucinations. I also measure specificity by counting dates, numbers, and concrete facts versus generic statements."
