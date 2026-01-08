@@ -337,8 +337,6 @@ CRITICAL: Return ONLY the JSON array [score1, score2, ...], nothing else. No exp
         # Validate we got the right number of scores
         if len(scores) != len(articles):
             st.warning(f"LLM scoring mismatch: got {len(scores)} scores for {len(articles)} articles. Using rule-based scores.")
-            # Show first few scores for debugging
-            st.caption(f"Debug: First 10 scores: {scores[:10]}")
             return articles
         
         # Assign LLM scores to articles
@@ -362,10 +360,8 @@ def generate_competitive_brief(company: str, use_news: bool, use_wikipedia: bool
         return "No data sources enabled. Please select at least one data source.", None, None
     
     # Step 1: Rule-based pre-filtering 
-    # Get 3x the user's request to give LLM excellent candidates to choose from
-    # Since Groq is free, we can afford to be generous with the candidate pool
-    rule_filter_size = min(num_articles * 3, 300)
-    processed = process_data(raw, company, top_n=rule_filter_size)
+    # Process all collected articles (News API gives us ~60-100 max)
+    processed = process_data(raw, company, top_n=100)
     news_items = [i for i in processed if i.get("source") == "News"]
     
     if len(news_items) < 5:
@@ -895,13 +891,13 @@ with tab1:
             **Your Selection: {num_articles} articles (target)**
             
             **Step 1: Collect** from News API
-            - Requests up to 100 articles from last 30 days
-            - Actually receives: ~60-150 (varies by company/coverage)
+            - Requests 100 articles from last 30 days (News API limit)
+            - Actually receives: ~60-100 articles (varies by company)
             
-            **Step 2: Rule-based pre-filter** → Top {num_articles * 3} candidates
-            - Multiplied by 3× to ensure sufficient high-quality options
-            - Uses keyword matching, recency, source authority
+            **Step 2: Rule-based pre-filter** → Process all collected articles
+            - Scores using keyword matching, recency, source authority
             - Fast, runs locally (no API cost)
+            - Typically keeps 80-95% of collected articles
             
             **Step 3: LLM semantic scoring** → Llama 3.3 scores each 0-100
             - Understands context (e.g., "Sam Altman" → OpenAI)
@@ -911,22 +907,21 @@ with tab1:
             **Step 4: Adaptive quality filtering**
             - Tries threshold of 40, 35, 30, 25, 20 (in that order)
             - Keeps lowering until we have enough quality articles
-            - Aims for ~{int(num_articles * 1.5)} articles passing filter
+            - Typically ~25-40% of articles pass quality threshold
             
             **Step 5: Final selection** → Up to **{num_articles} articles**
             - Takes top-scoring articles by LLM score
-            - **Note:** If fewer than {num_articles} articles pass quality thresholds, 
-              you'll get fewer (prioritizing quality over quantity)
+            - **Note:** You may get fewer if insufficient articles pass quality thresholds
+            - System prioritizes relevance over hitting arbitrary count
             - Sorted by semantic relevance (best first)
             
-            **Why 3× multiplier?** 
-            - Not all articles will pass LLM quality threshold (typically 40-60% pass)
-            - Multiplying by 3× ensures we usually have enough high-quality articles
-            - For sparse coverage companies, you may get fewer than requested
+            **Why you might get fewer than {num_articles}:**
+            - News API returns 60-100 articles (not unlimited)
+            - LLM quality filter is selective (removes ~60-75% as low-relevance)
+            - Better to analyze 22 highly relevant articles than 50 mixed-quality ones
             
-            **Quality over quantity:** The system prioritizes relevant, high-quality articles 
-            over hitting an arbitrary count. Better to analyze 31 great articles than 60 
-            mediocre ones.
+            **Quality over quantity:** The system prioritizes articles that provide genuine 
+            competitive intelligence value.
             """)
         
         st.markdown("---")
