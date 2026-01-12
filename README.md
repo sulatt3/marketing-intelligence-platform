@@ -369,7 +369,7 @@ Built by [Su Latt](https://github.com/sulatt3) as part of an AI engineering port
 
 ---
 
-## Technical Highlights for Interviews
+## Technical Highlights
 
 **Hybrid LLM Scoring:**
 > "I implemented a two-stage hybrid scoring system. Rule-based pre-filtering handles the obvious cases for speed and cost-efficiency, then Llama 3.3 70B (via Groq) provides semantic validation by batch-scoring the top 100 candidates. Only articles scoring ≥50 are included in the final analysis. This combines deterministic efficiency with LLM semantic understanding at zero cost using Groq's free inference API."
